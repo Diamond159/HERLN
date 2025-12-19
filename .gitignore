@@ -38,7 +38,7 @@ Thumbs.db
 checkpoints/
 *.pt
 # Ignore dataset files (keeps repo lean)
-data/
+# data/
 
 # Logs
 logs/
