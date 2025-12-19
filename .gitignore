@@ -1,0 +1,47 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.so
+
+# Environments
+.venv/
+venv/
+env/
+.pyenv/
+.python-version
+
+# Tools and caches
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+.cache/
+
+# Coverage
+.coverage
+coverage.xml
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editors/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Project data and checkpoints
+checkpoints/
+*.pt
+# Ignore dataset files (keeps repo lean)
+data/
+
+# Logs
+logs/
+
+# Misc
+*.tmp
