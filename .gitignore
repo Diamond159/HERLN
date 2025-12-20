@@ -1,5 +1,6 @@
 # Python artifacts
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *.so
 
@@ -38,7 +39,6 @@ Thumbs.db
 checkpoints/
 *.pt
 # Ignore dataset files (keeps repo lean)
-# data/
 
 # Logs
 logs/

@@ -230,7 +230,8 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                         relation_prediction=args.relation_prediction,
                         raw_input=args.raw_input,
                         use_cuda=use_cuda,
-                        gpu = args.gpu)
+                        gpu = args.gpu,
+                        alpha=args.alpha)
 
     if use_cuda:
         torch.cuda.set_device(args.gpu)
@@ -293,7 +294,8 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                 #history_glist = [utils.build_history_graph(num_nodes, num_rels, input_list, use_cuda, args.gpu)]
                 output = [torch.from_numpy(_).long().cuda() for _ in output] if use_cuda else [torch.from_numpy(_).long() for _ in output]
                 loss_e, loss_r = model.get_loss(history_glist, output[0], class_g, use_cuda)
-                loss = args.task_weight*loss_e + (1-args.task_weight)*loss_r
+                loss_freq = model.relation_freq_reg()
+                loss = args.task_weight*loss_e + (1-args.task_weight)*loss_r + args.freq_reg*loss_freq
                 losses.append(loss.item())
                 losses_e.append(loss_e.item())
                 losses_r.append(loss_r.item())

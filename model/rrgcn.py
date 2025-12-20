@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import torch.fft as fft
 try:
     from dgl.nn.pytorch import TAGConv
 except ImportError:
@@ -144,7 +145,7 @@ class RecurrentRGCN(nn.Module):
                  num_hidden_layers=1, dropout=0, self_loop=False, skip_connect=False, layer_norm=False, input_dropout=0,
                  hidden_dropout=0, feat_dropout=0, aggregation='cat', weight=1, 
                  theta=1, entity_prediction=False, relation_prediction=False, raw_input=False, use_cuda=False,
-                 gpu = 0):
+                 gpu = 0, alpha=10.0):
         super(RecurrentRGCN, self).__init__()
 
         self.decoder_name = decoder_name
@@ -167,6 +168,7 @@ class RecurrentRGCN(nn.Module):
         self.entity_prediction = entity_prediction
         self.use_cuda = use_cuda
         self.gpu = gpu
+        self.alpha = alpha
 
         self.emb_rel = torch.nn.Parameter(torch.Tensor(self.num_rels * 2, self.h_dim), requires_grad=True).float()      #对所有的关系做嵌入
         torch.nn.init.xavier_normal_(self.emb_rel)
@@ -300,6 +302,25 @@ class RecurrentRGCN(nn.Module):
         #     self.h = current_ent_emb
         #     self.h_0 = current_rel_emb
         # return history_embs, self.h_0, gate_list, degree_list
+
+    # ---------------- FFT-based relation decomposition and frequency regularizer ----------------
+    def _relation_fft_components(self):
+        rel = self.emb_rel  # (num_rels*2, h_dim)
+        freq_domain = fft.fft(rel, dim=1)
+        freqs = fft.fftfreq(self.h_dim, d=1.0).to(rel.device)
+        abs_freqs = freqs.abs()
+        low_mask = torch.exp(-abs_freqs * self.alpha).view(1, -1)
+        high_mask = 1.0 - low_mask
+        low_freq = freq_domain * low_mask
+        high_freq = freq_domain * high_mask
+        return low_freq, high_freq
+
+    def relation_freq_reg(self):
+        low_freq, high_freq = self._relation_fft_components()
+        separation = -torch.norm(low_freq - high_freq, p=2)
+        high_intensity = torch.norm(high_freq, p=2)
+        norm_factor = 1.0 / (high_freq.shape[0] * high_freq.shape[1])
+        return (separation + high_intensity) * norm_factor
 
 
     def predict(self, test_graph, num_rels, test_triplets, class_g, use_cuda):

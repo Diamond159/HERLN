@@ -26,6 +26,10 @@ parser.add_argument("--weight", type=float, default=0.5,
 					help="weight of current entity embedding in evolve")
 parser.add_argument("--task-weight", type=float, default=0.7,
 					help="weight of entity prediction task")
+parser.add_argument("--freq-reg", type=float, default=0.0,
+				help="strength of frequency regularizer (Lf)")
+parser.add_argument("--alpha", type=float, default=10.0,
+				help="FFT low-pass decay; larger = stronger low-pass")
 parser.add_argument("--theta", type=float, default=1,
 					help="threshold of attention score in RGCN")
 
