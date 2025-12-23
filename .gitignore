@@ -45,5 +45,3 @@ logs/
 
 # Misc
 *.tmp
-
-src/__pycache__/
