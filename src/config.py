@@ -96,7 +96,7 @@ parser.add_argument("--use-rel-context-prior", dest="use_rel_context_prior", act
 parser.add_argument("--no-rel-context-prior", dest="use_rel_context_prior", action='store_false',
 					help="disable relation context prior")
 parser.set_defaults(use_rel_context_prior=True)
-parser.add_argument("--rel-prior-weight", type=float, default=0.3,
+parser.add_argument("--rel-prior-weight", type=float, default=0.7,
 					help="weight for relation context prior logits")
 
 # configuration for sequences stat
