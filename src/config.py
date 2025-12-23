@@ -8,7 +8,7 @@ parser.add_argument("--batch-size", type=int, default=1,
 					help="batch-size")
 parser.add_argument("-d", "--dataset", type=str, required=True,
 					help="dataset to use")
-parser.add_argument("--n-epochs", type=int, default=50,
+parser.add_argument("--n-epochs", type=int, default=15,
 					help="number of minimum training epochs on each time step")
 parser.add_argument("--test", action='store_true', default=False,
 					help="load stat from dir and directly test")
@@ -89,6 +89,15 @@ parser.add_argument("--hidden-dropout", type=float, default=0.2,
 					help="hidden dropout for decoder")
 parser.add_argument("--feat-dropout", type=float, default=0.2,
 					help="feat dropout for decoder")
+
+# relation context prior (logit bias) configuration
+parser.add_argument("--use-rel-context-prior", dest="use_rel_context_prior", action='store_true',
+					help="enable relation context prior (subject/object pair MLP)")
+parser.add_argument("--no-rel-context-prior", dest="use_rel_context_prior", action='store_false',
+					help="disable relation context prior")
+parser.set_defaults(use_rel_context_prior=True)
+parser.add_argument("--rel-prior-weight", type=float, default=0.3,
+					help="weight for relation context prior logits")
 
 # configuration for sequences stat
 parser.add_argument("--train-history-len", type=int, default=10,

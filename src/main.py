@@ -231,7 +231,9 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                         raw_input=args.raw_input,
                         use_cuda=use_cuda,
                         gpu = args.gpu,
-                        alpha=args.alpha)
+                                                alpha=args.alpha,
+                                                use_rel_context_prior=args.use_rel_context_prior,
+                                                rel_prior_weight=args.rel_prior_weight)
 
     if use_cuda:
         torch.cuda.set_device(args.gpu)
