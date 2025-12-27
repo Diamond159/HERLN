@@ -8,7 +8,7 @@ parser.add_argument("--batch-size", type=int, default=1,
 					help="batch-size")
 parser.add_argument("-d", "--dataset", type=str, required=True,
 					help="dataset to use")
-parser.add_argument("--n-epochs", type=int, default=15,
+parser.add_argument("--n-epochs", type=int, default=50,
 					help="number of minimum training epochs on each time step")
 parser.add_argument("--test", action='store_true', default=False,
 					help="load stat from dir and directly test")
