@@ -233,14 +233,19 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                         gpu = args.gpu,
                                                 alpha=args.alpha,
                                                 use_rel_context_prior=args.use_rel_context_prior,
-                                                rel_prior_weight=args.rel_prior_weight)
+                                                rel_prior_weight=args.rel_prior_weight,
+                                                use_lie_reg=args.use_lie_reg,
+                                                lie_p=args.lie_p,
+                                                lie_ent_weight=args.lie_ent_weight,
+                                                lie_rel_weight=args.lie_rel_weight,
+                                                lie_pair_weight=args.lie_pair_weight)
 
     if use_cuda:
         torch.cuda.set_device(args.gpu)
         model.cuda()
 
     # optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-5)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-5)
 
     class2node, node2class = utils.analyse_class(args.dataset)
     #class_g = utils.class_graph(class2node)

@@ -8,7 +8,7 @@ parser.add_argument("--batch-size", type=int, default=1,
 					help="batch-size")
 parser.add_argument("-d", "--dataset", type=str, required=True,
 					help="dataset to use")
-parser.add_argument("--n-epochs", type=int, default=50,
+parser.add_argument("--n-epochs", type=int, default=15,
 					help="number of minimum training epochs on each time step")
 parser.add_argument("--test", action='store_true', default=False,
 					help="load stat from dir and directly test")
@@ -24,7 +24,7 @@ parser.add_argument("--seed", type=int, default=None,
 # configuration for encoder RGCN stat
 parser.add_argument("--weight", type=float, default=0.5,
 					help="weight of current entity embedding in evolve")
-parser.add_argument("--task-weight", type=float, default=0.7,
+parser.add_argument("--task-weight", type=float, default=0,
 					help="weight of entity prediction task")
 parser.add_argument("--freq-reg", type=float, default=0.0,
 				help="strength of frequency regularizer (Lf)")
@@ -96,8 +96,22 @@ parser.add_argument("--use-rel-context-prior", dest="use_rel_context_prior", act
 parser.add_argument("--no-rel-context-prior", dest="use_rel_context_prior", action='store_false',
 					help="disable relation context prior")
 parser.set_defaults(use_rel_context_prior=True)
-parser.add_argument("--rel-prior-weight", type=float, default=0.7,
+parser.add_argument("--rel-prior-weight", type=float, default=0.9,
 					help="weight for relation context prior logits")
+
+# Lie 群正则化配置
+parser.add_argument("--use-lie-reg", action='store_true', default=True,
+					help="enable Lie group regularization")
+parser.add_argument("--no-lie-reg", dest="use_lie_reg", action='store_false',
+					help="disable Lie group regularization")
+parser.add_argument("--lie-p", type=float, default=3.0,
+					help="Lp norm for Lie group regularization (default: N3)")
+parser.add_argument("--lie-ent-weight", type=float, default=0.005,
+					help="Lie regularization weight for entity embeddings")
+parser.add_argument("--lie-rel-weight", type=float, default=0.01,
+					help="Lie regularization weight for relation embeddings")
+parser.add_argument("--lie-pair-weight", type=float, default=0.01,
+					help="Lie regularization weight for entity pairs (for relation prediction)")
 
 # configuration for sequences stat
 parser.add_argument("--train-history-len", type=int, default=10,

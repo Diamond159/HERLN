@@ -12,6 +12,7 @@ except ImportError:
 # from rgcn.layers import RGCNBlockLayer as RGCNLayer
 from model.layers import UnionRGCNLayer, CompGCNCovLayer
 from model.hrgcn import HawkesRGCNLayer
+from model.lie_regularizer import RelationAwareLieRegularizer
 from src.utils import merge_graphs
 #from src.model import BaseRGCN
 from model.decoder import ConvTransE, ConvTransR, InteractE
@@ -114,7 +115,7 @@ class RGCNCell(BaseRGCN):
             for i, layer in enumerate(self.layers):
                 layer(g, [], r)
             return g.ndata.pop('h'), []
-        if self.encoder_name == "compgcn":
+        if self.encoder_name == "compgcn": 
             node_id = g.ndata['id'].squeeze()
             edge_id = g.edata['type'].squeeze()
             g.ndata['h'] = init_ent_emb[node_id]
@@ -146,7 +147,8 @@ class RecurrentRGCN(nn.Module):
                  hidden_dropout=0, feat_dropout=0, aggregation='cat', weight=1, 
                  theta=1, entity_prediction=False, relation_prediction=False, raw_input=False, use_cuda=False,
                  gpu = 0, alpha=10.0,
-                 use_rel_context_prior=True, rel_prior_weight=0.3):
+                 use_rel_context_prior=True, rel_prior_weight=0.3,
+                 use_lie_reg=True, lie_p=3.0, lie_ent_weight=0.005, lie_rel_weight=0.01, lie_pair_weight=0.01):
         super(RecurrentRGCN, self).__init__()
 
         self.decoder_name = decoder_name
@@ -172,6 +174,17 @@ class RecurrentRGCN(nn.Module):
         self.alpha = alpha
         self.use_rel_context_prior = use_rel_context_prior
         self.rel_prior_weight = rel_prior_weight
+        
+        # Lie 群正则化配置
+        self.use_lie_reg = use_lie_reg
+        if self.use_lie_reg:
+            self.lie_regularizer = RelationAwareLieRegularizer(
+                dim=h_dim,
+                p=lie_p,
+                ent_weight=lie_ent_weight,
+                rel_weight=lie_rel_weight,
+                pair_weight=lie_pair_weight
+            )
 
         self.emb_rel = torch.nn.Parameter(torch.Tensor(self.num_rels * 2, self.h_dim), requires_grad=True).float()      #对所有的关系做嵌入
         torch.nn.init.xavier_normal_(self.emb_rel)
@@ -401,5 +414,11 @@ class RecurrentRGCN(nn.Module):
                 prior_logits = self.rel_prior(pair_feat)
                 score_rel = score_rel + self.rel_prior_weight * prior_logits
             loss_rel += self.loss_r(score_rel, all_triples[:, 1])
+
+        # Lie 群正则化损失（简化版：使用批次实体 + 关系正交 + 实体对对比）
+        if self.use_lie_reg:
+            # 传入完整的 pre_emb 用于实体对对比学习（通过 triplets 索引）
+            loss_lie = self.lie_regularizer(pre_emb, r_emb, all_triples)
+            loss_rel = loss_rel + loss_lie
 
         return loss_ent, loss_rel
