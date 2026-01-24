@@ -252,13 +252,6 @@ class RecurrentRGCN(nn.Module):
 
 
     def forward(self, g_list, class_g, use_cuda):
-        # gate_list = []              #全是空的
-        # degree_list = []            #全是空的
-
-        # gru_hidden = torch.zeros(1, self.h_dim) #GRU隐藏层初值
-        # gru_hidden = gru_hidden.to(self.gpu)
-        #graph_gru_hidden = torch.zeros(1, self.graph_h_dim)
-        #graph_gru_hidden = graph_gru_hidden.to(self.gpu)
         if class_g is None:
             current_ent_emb = self.emb_ent
         else:
@@ -268,24 +261,39 @@ class RecurrentRGCN(nn.Module):
             current_ent_emb = self.classgcn(class_g, current_ent_emb)
             current_ent_emb = F.normalize(current_ent_emb) if self.layer_norm else current_ent_emb
             self.emb_ent = torch.nn.Parameter(current_ent_emb)
-        # current_ent_emb = self.emb_ent
+
         history_embs = []
         graph_h_list = []
-        # graph_h_list = torch.zeros(self.sequence_len, self.graph_h_dim)
-        #for i in range(len(g_list)):
+        
+        # 合并所有历史图
         history_graph = merge_graphs(self.num_ents, g_list, use_cuda, self.gpu)
-        #history_graph = g_list[0]
         if use_cuda:
             history_graph = history_graph.to(self.gpu)
+        
+        # 检查历史图是否有线图和概率矩阵信息
+        has_line_graph = any(hasattr(g, 'line_graph_obj') and g.line_graph_obj is not None for g in g_list)
+        has_pm_pd = any(hasattr(g, 'pm_pd') and g.pm_pd is not None for g in g_list)
+        
+        if has_line_graph and has_pm_pd:
+            # 如果有线图和概率矩阵，将它们附加到合并的历史图中
+            # 这里我们使用最后一个图的线图和概率矩阵作为代表
+            for g in reversed(g_list):
+                if hasattr(g, 'line_graph_obj') and g.line_graph_obj is not None:
+                    history_graph.line_graph_obj = g.line_graph_obj
+                    if use_cuda:
+                        history_graph.line_graph_obj = history_graph.line_graph_obj.to(self.gpu)
+                    break
+            
+            for g in reversed(g_list):
+                if hasattr(g, 'pm_pd') and g.pm_pd is not None:
+                    history_graph.pm_pd = g.pm_pd
+                    if use_cuda and hasattr(g.pm_pd, 'to'):
+                        history_graph.pm_pd = history_graph.pm_pd.to(self.gpu)
+                    break
+
         new_ent_emb = current_ent_emb
-        #for i in range(self.sequence_len):
         new_ent_emb, _ = self.rgcn.forward(history_graph, new_ent_emb, self.emb_rel)
         new_ent_emb = F.normalize(new_ent_emb) if self.layer_norm else new_ent_emb
-
-        # node_emb_graph = self.node2graph(new_ent_emb)
-        # node_emb_graph_gate = self.node2graph_gate(new_ent_emb)
-        # self.graph_h = torch.sum(torch.mul(node_emb_graph, node_emb_graph_gate), dim=0, keepdim=True)
-        # self.graph_h = F.normalize(self.graph_h, dim=1) if self.layer_norm else self.graph_h
 
         weight_vec = self.reset_gate(new_ent_emb).reshape(1, self.num_ents)
         weight = nn.functional.sigmoid(self.reset_gate1(weight_vec))
@@ -293,9 +301,6 @@ class RecurrentRGCN(nn.Module):
 
         history_embs.append(new_ent_emb)
         graph_h_list.append(self.graph_h)
-        # new_rel_emb = torch.mm(self.emb_rel, self.rel_evolve(self.graph_h).reshape(self.h_dim, self.h_dim))
-
-        #print(new_ent_emb)
 
         return history_embs, self.emb_rel, graph_h_list
         

@@ -84,7 +84,7 @@ def test(model, history_list, test_list, num_rels, num_nodes, class_g, use_cuda,
         input_list = [snap for snap in history_list[-args.test_history_len:]]
 
     for time_idx, test_snap in enumerate(tqdm(test_list)):
-        history_glist = [build_sub_graph(num_nodes, num_rels, input_list[i], i, use_cuda, args.gpu) for i in range(len(input_list))]
+        history_glist = [build_sub_graph(num_nodes, num_rels, input_list[i], i, use_cuda, args.gpu, build_line_graph=getattr(args, 'enable_line_graph', False)) for i in range(len(input_list))]
         #history_glist = [utils.build_history_graph(num_nodes, num_rels, input_list, use_cuda, args.gpu)]
         test_triples_input = torch.LongTensor(test_snap).cuda() if use_cuda else torch.LongTensor(test_snap)
         test_triples_input = test_triples_input.to(args.gpu)
@@ -296,8 +296,8 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                     update_class_embedding = False
                 else:
                     class_g = None
-                # generate history graph
-                history_glist = [build_sub_graph(num_nodes, num_rels, input_list[i], i, use_cuda, args.gpu) for i in range(len(input_list))]
+                # generate history graph with line graph support
+                history_glist = [build_sub_graph(num_nodes, num_rels, input_list[i], i, use_cuda, args.gpu, build_line_graph=getattr(args, 'enable_line_graph', False)) for i in range(len(input_list))]
                 #history_glist = [utils.build_history_graph(num_nodes, num_rels, input_list, use_cuda, args.gpu)]
                 output = [torch.from_numpy(_).long().cuda() for _ in output] if use_cuda else [torch.from_numpy(_).long() for _ in output]
                 loss_e, loss_r = model.get_loss(history_glist, output[0], class_g, use_cuda)

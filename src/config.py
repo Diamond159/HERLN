@@ -113,6 +113,10 @@ parser.add_argument("--lie-rel-weight", type=float, default=0.01,
 parser.add_argument("--lie-pair-weight", type=float, default=0.01,
 					help="Lie regularization weight for entity pairs (for relation prediction)")
 
+# configuration for line graph and probability matrix
+parser.add_argument("--enable-line-graph", action='store_true', default=False,
+					help="enable line graph and probability matrix functionality")
+
 # configuration for sequences stat
 parser.add_argument("--train-history-len", type=int, default=10,
 					help="history length")
