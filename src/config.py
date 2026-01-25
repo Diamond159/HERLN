@@ -117,6 +117,14 @@ parser.add_argument("--lie-pair-weight", type=float, default=0.01,
 parser.add_argument("--enable-line-graph", action='store_true', default=False,
 					help="enable line graph and probability matrix functionality")
 
+# configuration for alternating forward-inverse training
+parser.add_argument("--alternating-training", action='store_true', default=False,
+					help="enable alternating forward and inverse training to reduce overfitting")
+parser.add_argument("--inverse-training-ratio", type=float, default=0.5,
+					help="ratio of inverse training steps (0.0-1.0)")
+parser.add_argument("--inverse-loss-weight", type=float, default=1.0,
+					help="weight for inverse training loss")
+
 # configuration for sequences stat
 parser.add_argument("--train-history-len", type=int, default=10,
 					help="history length")

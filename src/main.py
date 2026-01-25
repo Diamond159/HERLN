@@ -270,6 +270,19 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
         print("--------------{} not exist, Change mode to train and generate stat for testing----------------\n".format(model_state_file))
     else:
         print("----------------------------------------start training----------------------------------------\n")
+        
+        # 准备交替训练数据（如果启用）
+        if args.alternating_training:
+            print(f"🔄 启用交替训练模式，反向训练比例: {args.inverse_training_ratio}")
+            # 为每个时间步创建反向三元组
+            inverse_train_list = []
+            for triples in train_list:
+                if len(triples) > 0:
+                    inverse_triples = utils.create_inverse_triples(triples, num_rels)
+                    inverse_train_list.append(inverse_triples)
+                else:
+                    inverse_train_list.append(np.array([]).reshape(0, 3))
+        
         best_mrr = 0
         for epoch in range(args.n_epochs):
             model.train()
@@ -277,13 +290,38 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
             losses_e = []
             losses_r = []
             
+            # 交替训练统计
+            forward_count = 0
+            inverse_count = 0
+            
 
             idx = [_ for _ in range(len(train_list))]
             random.shuffle(idx)
 
             for train_sample_num in tqdm(idx):
                 if train_sample_num == 0: continue
-                output = train_list[train_sample_num:train_sample_num+1]
+                
+                # 决定使用正向还是反向训练
+                use_inverse = False
+                if args.alternating_training:
+                    # 根据比例和随机性决定是否使用反向训练
+                    if random.random() < args.inverse_training_ratio:
+                        use_inverse = True
+                        inverse_count += 1
+                    else:
+                        forward_count += 1
+                else:
+                    forward_count += 1
+                
+                # 选择训练数据
+                if use_inverse and args.alternating_training:
+                    output = inverse_train_list[train_sample_num:train_sample_num+1]
+                    training_mode = "inverse"
+                else:
+                    output = train_list[train_sample_num:train_sample_num+1]
+                    training_mode = "forward"
+                
+                # 准备历史图数据
                 if args.train_history_len == -1:
                     input_list = train_list[0: train_sample_num]
                 else:
@@ -298,11 +336,18 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                     class_g = None
                 # generate history graph with line graph support
                 history_glist = [build_sub_graph(num_nodes, num_rels, input_list[i], i, use_cuda, args.gpu, build_line_graph=getattr(args, 'enable_line_graph', False)) for i in range(len(input_list))]
-                #history_glist = [utils.build_history_graph(num_nodes, num_rels, input_list, use_cuda, args.gpu)]
+                
                 output = [torch.from_numpy(_).long().cuda() for _ in output] if use_cuda else [torch.from_numpy(_).long() for _ in output]
                 loss_e, loss_r = model.get_loss(history_glist, output[0], class_g, use_cuda)
                 loss_freq = model.relation_freq_reg()
-                loss = args.task_weight*loss_e + (1-args.task_weight)*loss_r + args.freq_reg*loss_freq
+                
+                # 应用反向训练的权重调整
+                if use_inverse and args.alternating_training:
+                    loss_weight = args.inverse_loss_weight
+                else:
+                    loss_weight = 1.0
+                
+                loss = loss_weight * (args.task_weight*loss_e + (1-args.task_weight)*loss_r) + args.freq_reg*loss_freq
                 losses.append(loss.item())
                 losses_e.append(loss_e.item())
                 losses_r.append(loss_r.item())
@@ -312,8 +357,14 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                 optimizer.step()
                 optimizer.zero_grad()
 
-            print("Epoch {:04d} | Ave Loss: {:.4f} | entity-relation:{:.4f}-{:.4f} Best MRR {:.4f} | Model {} "
-                  .format(epoch, np.mean(losses), np.mean(losses_e), np.mean(losses_r), best_mrr, model_name))
+            # 打印训练统计信息
+            if args.alternating_training:
+                print("Epoch {:04d} | Ave Loss: {:.4f} | entity-relation:{:.4f}-{:.4f} | Forward/Inverse: {}/{} | Best MRR {:.4f} | Model {} "
+                      .format(epoch, np.mean(losses), np.mean(losses_e), np.mean(losses_r), 
+                             forward_count, inverse_count, best_mrr, model_name))
+            else:
+                print("Epoch {:04d} | Ave Loss: {:.4f} | entity-relation:{:.4f}-{:.4f} Best MRR {:.4f} | Model {} "
+                      .format(epoch, np.mean(losses), np.mean(losses_e), np.mean(losses_r), best_mrr, model_name))
 
             # validation
             if epoch and epoch % args.evaluate_every == 0:

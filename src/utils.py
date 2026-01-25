@@ -309,6 +309,78 @@ def prepare_triples_with_inverse(triples, num_rels):
     return all_triples
 
 
+def create_inverse_triples(triples, num_rels):
+    """
+    为反向训练创建反向三元组
+    
+    参数:
+        triples: 原始三元组 (head, relation, tail)
+        num_rels: 关系数量
+    
+    返回:
+        inverse_triples: 反向三元组 (tail, relation+num_rels, head)
+    """
+    if len(triples) == 0:
+        return np.array([]).reshape(0, 3)
+        
+    # 确保输入是numpy数组
+    if not isinstance(triples, np.ndarray):
+        triples = np.array(triples)
+    
+    # 创建反向三元组: (tail, relation+num_rels, head)
+    inverse_triples = triples[:, [2, 1, 0]]  # 交换头尾实体
+    inverse_triples[:, 1] = inverse_triples[:, 1] + num_rels  # 反向关系ID偏移
+    
+    return inverse_triples
+
+
+def split_by_time_with_inverse(train_data, enable_inverse=True):
+    """
+    按时间划分训练数据，可选地为每个时间步创建反向三元组
+    
+    参数:
+        train_data: 训练数据
+        enable_inverse: 是否创建反向三元组
+    
+    返回:
+        time_splits: 按时间划分的数据
+        inverse_splits: 反向三元组数据（如果启用）
+    """
+    from collections import defaultdict
+    
+    time_data = defaultdict(list)
+    
+    # 按时间步分组
+    for quad in train_data:
+        if len(quad) >= 4:
+            time_step = quad[3]  # 时间步
+            time_data[time_step].append(quad[:3])  # [head, relation, tail]
+        else:
+            time_data[0].append(quad[:3])  # 默认时间步为0
+    
+    # 转换为有序列表
+    time_splits = []
+    inverse_splits = []
+    
+    for time_step in sorted(time_data.keys()):
+        triples = np.array(time_data[time_step])
+        time_splits.append(triples)
+        
+        if enable_inverse and len(triples) > 0:
+            # 创建反向三元组
+            # 需要知道关系数量，这里使用估计值
+            max_rel = max([triple[1] for triple in triples]) + 1
+            inverse_triples = create_inverse_triples(triples, max_rel)
+            inverse_splits.append(inverse_triples)
+        elif enable_inverse:
+            inverse_splits.append(np.array([]).reshape(0, 3))
+    
+    if enable_inverse:
+        return time_splits, inverse_splits
+    else:
+        return time_splits, None
+
+
 def comp_deg_norm(g):
         in_deg = g.in_degrees(range(g.number_of_nodes())).float()
         in_deg[torch.nonzero(in_deg == 0).view(-1)] = 1
