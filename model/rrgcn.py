@@ -348,7 +348,10 @@ class RecurrentRGCN(nn.Module):
                 if updated_rel_emb is not None and not torch.isnan(updated_rel_emb).any():
                     current_rel_emb = updated_rel_emb
                     rel_embs_history.append(current_rel_emb)
-                    print("Relation dynamics updated successfully")
+                    # 只在特定条件下打印成功信息，避免干扰进度条
+                    if torch.rand(1).item() < 0.01:  # 1%的概率打印
+                        from tqdm import tqdm
+                        tqdm.write("Relation dynamics updated successfully")
                 else:
                     print("Invalid relation dynamics output, using original embeddings")
                     rel_embs_history.append(current_rel_emb)
@@ -431,10 +434,12 @@ class RecurrentRGCN(nn.Module):
                 if self.use_copy_generation and hasattr(self, 'copy_gen_decoder') and self.copy_gen_decoder is not None:
                     # 使用ERD-Net复制-生成解码器进行增强
                     score_rel = self.rdecoder.forward(embedding, r_emb, all_triples, mode="test")
-                    copy_scores = self.copy_gen_decoder.forward(test_graph, r_emb, embedding, training=False)
+                    # 修复参数：使用正确的参数顺序和名称
+                    copy_scores = self.copy_gen_decoder.forward(embedding, r_emb, all_triples, mode="test", use_copy=True)
                     if copy_scores is not None and not torch.isnan(copy_scores).any():
-                        # 简单融合
-                        score_rel = score_rel + 0.3 * copy_scores[:score_rel.size(0)]  # 确保维度匹配
+                        # 简单融合，确保维度匹配
+                        min_size = min(score_rel.size(0), copy_scores.size(0))
+                        score_rel[:min_size] = score_rel[:min_size] + 0.3 * copy_scores[:min_size]
                 else:
                     score_rel = self.rdecoder.forward(embedding, r_emb, all_triples, mode="test")
             except Exception as e:
@@ -483,10 +488,13 @@ class RecurrentRGCN(nn.Module):
             try:
                 if self.use_copy_generation and hasattr(self, 'copy_gen_decoder') and self.copy_gen_decoder is not None:
                     # 使用ERD-Net复制-生成解码器
-                    copy_loss = self.copy_gen_decoder.get_loss(glist, all_triples)
+                    copy_loss = self.copy_gen_decoder.get_loss(pre_emb, r_emb, all_triples, use_copy=True)
                     if hasattr(copy_loss, 'item') and not torch.isnan(copy_loss) and not torch.isinf(copy_loss):
                         loss_rel += 0.1 * copy_loss  # 使用小权重避免过强影响
-                        print(f"Copy generation loss: {copy_loss.item():.6f}")
+                        # 只在特定条件下打印损失信息，避免干扰进度条
+                        if torch.rand(1).item() < 0.01:  # 1%的概率打印
+                            from tqdm import tqdm
+                            tqdm.write(f"Copy generation loss: {copy_loss.item():.6f}")
                     else:
                         print("Invalid copy generation loss, skipping")
                 else:

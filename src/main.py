@@ -362,7 +362,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
             idx = [_ for _ in range(len(train_list))]
             random.shuffle(idx)
 
-            for train_sample_num in tqdm(idx):
+            for train_sample_num in tqdm(idx, desc=f"Epoch {epoch+1}/{args.n_epochs}", ncols=100, leave=False):
                 if train_sample_num == 0: continue
                 
                 # 决定使用正向还是反向训练

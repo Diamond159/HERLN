@@ -65,9 +65,18 @@ class CopyGenerationRelationDecoder(nn.Module):
     def update_relation_frequencies(self, relation_batch):
         """动态更新关系频率统计"""
         with torch.no_grad():
-            for rel in relation_batch:
+            # 添加批量大小限制，防止无限循环
+            max_batch_size = 10000  # 设置最大处理批量
+            if len(relation_batch) > max_batch_size:
+                print(f"Warning: Batch size {len(relation_batch)} too large, truncating to {max_batch_size}")
+                relation_batch = relation_batch[:max_batch_size]
+                
+            for i, rel in enumerate(relation_batch):
+                if i > max_batch_size:  # 额外安全检查
+                    break
+                    
                 rel_idx = rel.item()
-                if rel_idx < self.relation_freq.size(0):
+                if 0 <= rel_idx < self.relation_freq.size(0):
                     self.relation_count[rel_idx] += 1
                     # 使用指数移动平均更新频率
                     self.relation_freq[rel_idx] = 0.9 * self.relation_freq[rel_idx] + 0.1
@@ -155,13 +164,19 @@ class CopyGenerationRelationDecoder(nn.Module):
     def get_loss(self, entity_embs, rel_embs, triples, use_copy=True):
         """计算关系预测损失"""
         try:
+            # 添加输入验证，防止无效数据导致无限循环
+            if triples.size(0) == 0:
+                return torch.tensor(0.0, device=self.device, requires_grad=True)
+            
+            if triples.size(0) > 50000:  # 限制批量大小
+                print(f"Warning: Large batch size {triples.size(0)}, truncating")
+                triples = triples[:50000]
+            
             probs = self.forward(entity_embs, rel_embs, triples, mode="train", use_copy=use_copy)
             
-            # 更新统计信息
-            if use_copy:
+            # 更新统计信息（限制频率更新）
+            if use_copy and triples.size(0) < 10000:  # 只对小批量更新频率
                 self.update_relation_frequencies(triples[:, 1])
-                # 简化：不更新复杂的历史模式
-                # self.update_history_patterns(triples)
             
             # 交叉熵损失
             target_rels = triples[:, 1].long()

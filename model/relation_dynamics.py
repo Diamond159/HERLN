@@ -86,7 +86,12 @@ class GlobalRelationDynamics(nn.Module):
             # 简化处理：直接使用平均实体特征
             if len(ent_embs) > 0:
                 avg_ent_feature = torch.mean(ent_embs, dim=0, keepdim=True)
-                rel_ent_input = avg_ent_feature.expand(self.num_rels, -1)
+                # 确保rel_ent_input的维度与rel_embs匹配
+                if rel_embs.size(0) == self.num_rels:
+                    rel_ent_input = avg_ent_feature.expand(self.num_rels, -1)
+                else:
+                    # 处理num_rels*2的情况（包括反向关系）
+                    rel_ent_input = avg_ent_feature.expand(rel_embs.size(0), -1)
                 rel_ent_input = self.rel_ent_interaction(rel_ent_input)
             
             # 组合原始关系嵌入和交互信息
