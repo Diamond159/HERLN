@@ -13,6 +13,10 @@ except ImportError:
 from model.layers import UnionRGCNLayer, CompGCNCovLayer
 from model.hrgcn import HawkesRGCNLayer
 from model.lie_regularizer import RelationAwareLieRegularizer
+from model.temporal_trend_encoder import (
+    TemporalTrendEncoder, PeriodicTrendTimeEmbedding, 
+    TemporalGatingModule, AngleConstrainedLoss, TemporalContrastiveLoss
+)
 from src.utils import merge_graphs
 #from src.model import BaseRGCN
 from model.decoder import ConvTransE, ConvTransR, InteractE
@@ -101,7 +105,7 @@ class RGCNCell(BaseRGCN):
         elif self.encoder_name == 'compgcn':
             return CompGCNCovLayer(self.h_dim, self.h_dim, self.num_rels, self.num_bases, activation=act, dropout=self.dropout, opn=self.opn, rel_emb=self.rel_emb)
         elif self.encoder_name == 'hrgcn':
-            return HawkesRGCNLayer(self.h_dim, self.h_dim, self.num_rels, dropout=self.dropout, self_loop=self.self_loop, skip_connect=sc, rel_emb=self.rel_emb)
+            return HawkesRGCNLayer(self.h_dim, self.h_dim, self.num_rels, dropout=self.dropout, self_loop=self.self_loop, skip_connect=sc, rel_emb=self.rel_emb, use_temporal_gating=False)
         else:
             raise NotImplementedError
 
@@ -148,7 +152,10 @@ class RecurrentRGCN(nn.Module):
                  theta=1, entity_prediction=False, relation_prediction=False, raw_input=False, use_cuda=False,
                  gpu = 0, alpha=10.0,
                  use_rel_context_prior=True, rel_prior_weight=0.3,
-                 use_lie_reg=True, lie_p=3.0, lie_ent_weight=0.005, lie_rel_weight=0.01, lie_pair_weight=0.01):
+                 use_lie_reg=True, lie_p=3.0, lie_ent_weight=0.005, lie_rel_weight=0.01, lie_pair_weight=0.01,
+                 use_temporal_trend=False, temporal_gating=False, time_embedding_alpha=0.5,
+                 angle_degree=10.0, temporal_temperature=0.07, use_angle_constraint=False,
+                 use_temporal_contrastive=False, angle_constraint_weight=0.1, temporal_contrastive_weight=0.1):
         super(RecurrentRGCN, self).__init__()
 
         self.decoder_name = decoder_name
@@ -174,6 +181,29 @@ class RecurrentRGCN(nn.Module):
         self.alpha = alpha
         self.use_rel_context_prior = use_rel_context_prior
         self.rel_prior_weight = rel_prior_weight
+        
+        # Periodic Trend Temporal Encoding configuration
+        self.use_temporal_trend = use_temporal_trend
+        self.temporal_gating = temporal_gating
+        self.use_angle_constraint = use_angle_constraint
+        self.use_temporal_contrastive = use_temporal_contrastive
+        self.angle_constraint_weight = angle_constraint_weight
+        self.temporal_contrastive_weight = temporal_contrastive_weight
+        
+        # Initialize temporal trend encoder if enabled
+        if self.use_temporal_trend:
+            self.temporal_trend_encoder = TemporalTrendEncoder(
+                num_entities=num_ents,
+                h_dim=h_dim,
+                max_history_len=sequence_len,
+                alpha_balance=time_embedding_alpha,
+                angle_degree=angle_degree,
+                temperature=temporal_temperature,
+                use_gating=temporal_gating,
+                use_angle_loss=use_angle_constraint,
+                use_contrastive_loss=use_temporal_contrastive,
+                dropout=dropout
+            )
         
         # Lie 群正则化配置
         self.use_lie_reg = use_lie_reg

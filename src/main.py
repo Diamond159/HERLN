@@ -231,14 +231,23 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                         raw_input=args.raw_input,
                         use_cuda=use_cuda,
                         gpu = args.gpu,
-                                                alpha=args.alpha,
-                                                use_rel_context_prior=args.use_rel_context_prior,
-                                                rel_prior_weight=args.rel_prior_weight,
-                                                use_lie_reg=args.use_lie_reg,
-                                                lie_p=args.lie_p,
-                                                lie_ent_weight=args.lie_ent_weight,
-                                                lie_rel_weight=args.lie_rel_weight,
-                                                lie_pair_weight=args.lie_pair_weight)
+                        alpha=args.alpha,
+                        use_rel_context_prior=args.use_rel_context_prior,
+                        rel_prior_weight=args.rel_prior_weight,
+                        use_lie_reg=args.use_lie_reg,
+                        lie_p=args.lie_p,
+                        lie_ent_weight=args.lie_ent_weight,
+                        lie_rel_weight=args.lie_rel_weight,
+                        lie_pair_weight=args.lie_pair_weight,
+                        use_temporal_trend=args.use_temporal_trend,
+                        temporal_gating=args.temporal_gating,
+                        time_embedding_alpha=args.time_embedding_alpha,
+                        angle_degree=args.angle_degree,
+                        temporal_temperature=args.temporal_temperature,
+                        use_angle_constraint=args.use_angle_constraint,
+                        use_temporal_contrastive=args.use_temporal_contrastive,
+                        angle_constraint_weight=args.angle_constraint_weight,
+                        temporal_contrastive_weight=args.temporal_contrastive_weight)
 
     if use_cuda:
         torch.cuda.set_device(args.gpu)

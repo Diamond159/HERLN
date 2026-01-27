@@ -3,10 +3,12 @@ import dgl.function as fn
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 
 class HawkesRGCNLayer(nn.Module):
 	def __init__(self, in_feat, out_feat, num_rels, 
-					activation=None, self_loop=False, dropout=0.0, skip_connect=False, rel_emb=None):
+					activation=None, self_loop=False, dropout=0.0, skip_connect=False, rel_emb=None, 
+					use_temporal_gating=False):
 		super(HawkesRGCNLayer, self).__init__()
 
 		self.in_feat = in_feat
@@ -16,6 +18,7 @@ class HawkesRGCNLayer(nn.Module):
 		self.num_rels = num_rels
 		self.rel_emb = None
 		self.skip_connect = skip_connect
+		self.use_temporal_gating = use_temporal_gating
 
 		# WL
 		self.weight_neighbor = nn.Parameter(torch.Tensor(self.in_feat*2, self.out_feat))
@@ -24,6 +27,25 @@ class HawkesRGCNLayer(nn.Module):
 		self.attn_fc = nn.Linear(3 * out_feat, 1, bias=False)
 		# k,用于计算时间衰减
 		self.delta = nn.Parameter(torch.ones(*[1]), requires_grad=True).float()
+
+		# Temporal Gating Components
+		if self.use_temporal_gating:
+			# Cosine time encoding parameters
+			self.weight_t2 = nn.Parameter(torch.Tensor(1, out_feat))
+			nn.init.normal_(self.weight_t2, mean=0, std=0.1)
+			
+			self.bias_t2 = nn.Parameter(torch.Tensor(1, out_feat))
+			nn.init.zeros_(self.bias_t2)
+			
+			# Temporal gate weight
+			self.time_gate_weight = nn.Parameter(torch.Tensor(out_feat, out_feat))
+			nn.init.xavier_uniform_(self.time_gate_weight, gain=nn.init.calculate_gain('sigmoid'))
+			
+			self.time_gate_bias = nn.Parameter(torch.Tensor(out_feat))
+			nn.init.zeros_(self.time_gate_bias)
+			
+			# Projection layer for fusing time encoding
+			self.w4 = nn.Linear(in_feat * 2, out_feat)
 
 		if self.self_loop:
 			# 分别处理独立节点和有连接的节点（是否需要？）
@@ -49,7 +71,28 @@ class HawkesRGCNLayer(nn.Module):
 		#这样是不是不再需要apply function?
 		g.update_all(lambda x: self.msg_func(x), self.reduce_func, self.apply_func)
 
-	def forward(self, g, prev_h, emb_rel):
+	def apply_temporal_gating(self, h: torch.Tensor, time_distance: int) -> torch.Tensor:
+		"""
+		Apply temporal gating to entity embeddings
+		
+		Args:
+			h: Entity embeddings, shape (num_nodes, out_feat)
+			time_distance: Relative time distance for this snapshot
+			
+		Returns:
+			Gated embeddings
+		"""
+		# Cosine time encoding: h_t = cos(weight_t2 * time_distance + bias_t2)
+		h_t = torch.cos(self.weight_t2 * time_distance + self.bias_t2)
+		h_t = h_t.repeat(h.size(0), 1)  # Broadcast to match batch size
+		
+		# Fuse temporal encoding with entity embeddings
+		h_fused = torch.cat([h, h_t], dim=1)  # (num_nodes, 2*out_feat)
+		h_fused = self.w4(h_fused)  # Project back to out_feat
+		
+		return h_fused
+
+	def forward(self, g, prev_h, emb_rel, time_distance: int = 1):
 		self.rel_emb = emb_rel
 		# self.sub = sub
 		# self.ob = ob
@@ -66,6 +109,11 @@ class HawkesRGCNLayer(nn.Module):
 		g.apply_edges(self.edge_attention)
 		self.propagate(g)
 		node_repr = g.ndata['h']
+		
+		# Apply temporal gating if enabled
+		if self.use_temporal_gating:
+			node_repr = self.apply_temporal_gating(node_repr, time_distance)
+		
 		# print(len(prev_h))
 		if len(prev_h) != 0 and self.skip_connect:  # 两次计算loop_message的方式不一样，前者激活后再加权
 			if self.self_loop:

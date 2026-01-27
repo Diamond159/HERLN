@@ -119,6 +119,26 @@ parser.add_argument("--train-history-len", type=int, default=10,
 parser.add_argument("--test-history-len", type=int, default=10,
 					help="history length for test")
 
+# Periodic Trend Temporal Encoding configuration
+parser.add_argument("--use-temporal-trend", action='store_true', default=False,
+					help="enable periodic trend temporal encoding")
+parser.add_argument("--temporal-gating", action='store_true', default=False,
+					help="enable temporal gating mechanism in HRGCN")
+parser.add_argument("--time-embedding-alpha", type=float, default=0.5,
+					help="balance between linear trend and periodic components (0.0-1.0)")
+parser.add_argument("--angle-degree", type=float, default=10.0,
+					help="angle constraint for temporal evolution (degrees)")
+parser.add_argument("--temporal-temperature", type=float, default=0.07,
+					help="temperature for temporal contrastive learning")
+parser.add_argument("--use-angle-constraint", action='store_true', default=False,
+					help="enable angle constraint loss for temporal consistency")
+parser.add_argument("--use-temporal-contrastive", action='store_true', default=False,
+					help="enable temporal contrastive learning")
+parser.add_argument("--angle-constraint-weight", type=float, default=0.1,
+					help="weight for angle constraint loss")
+parser.add_argument("--temporal-contrastive-weight", type=float, default=0.1,
+					help="weight for temporal contrastive loss")
+
 # configuration for optimal parameters
 parser.add_argument("--grid-search", action='store_true', default=False,
 					help="perform grid search for best configuration")
