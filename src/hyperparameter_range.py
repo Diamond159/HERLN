@@ -8,6 +8,6 @@ hp_range = {
     "lr": [0.001],      # Adam 优化器的学习率
     "conv_kernels": [50],  # ConvTransE 的卷积核数量
     "kernel_size": [(2, 3)],  # ConvTransE 的卷积核大小
-    "random_seeds": [123],  # 随机种子
+    "random_seeds": [42],  # 随机种子
     "edge_weight": [1],  # 边的默认权重
 }

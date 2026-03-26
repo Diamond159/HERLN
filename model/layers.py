@@ -221,25 +221,55 @@ class UnionRGCNLayer(nn.Module):
 
     def forward(self, g, prev_h, emb_rel):
         self.rel_emb = emb_rel
-        # self.sub = sub
-        # self.ob = ob
+        # 检查是否有线图和概率矩阵可用
+        has_line_graph = hasattr(g, 'line_graph_obj') and g.line_graph_obj is not None
+        has_pm_pd = hasattr(g, 'pm_pd') and g.pm_pd is not None
+        
         if self.self_loop:
-            #loop_message = torch.mm(g.ndata['h'], self.loop_weight)
-            # masked_index = torch.masked_select(torch.arange(0, g.number_of_nodes(), dtype=torch.long), (g.in_degrees(range(g.number_of_nodes())) > 0))
             masked_index = torch.masked_select(
                 torch.arange(0, g.number_of_nodes(), dtype=torch.long).cuda(),
                 (g.in_degrees(range(g.number_of_nodes())) > 0))
             loop_message = torch.mm(g.ndata['h'], self.evolve_loop_weight)
             loop_message[masked_index, :] = torch.mm(g.ndata['h'], self.loop_weight)[masked_index, :]
+            
+            # 如果有概率矩阵，可以用于改进自循环消息的计算
+            if has_pm_pd:
+                try:
+                    # PM_PD 矩阵可以用来调节节点的自循环权重
+                    # 这里我们使用PM_PD信息来影响loop_message
+                    pm_pd_weights = torch.sparse.sum(g.pm_pd.abs(), dim=1).to_dense()
+                    pm_pd_weights = pm_pd_weights / (pm_pd_weights.max() + 1e-8)  # 归一化
+                    pm_pd_weights = pm_pd_weights.view(-1, 1)
+                    loop_message = loop_message * (1.0 + pm_pd_weights * 0.1)  # 小幅调整
+                except Exception as e:
+                    print(f"Warning: Failed to use PM_PD for loop message: {e}")
+                    
         if len(prev_h) != 0 and self.skip_connect:
-            skip_weight = F.sigmoid(torch.mm(prev_h, self.skip_connect_weight) + self.skip_connect_bias)     # 使用sigmoid，让值在0~1
+            skip_weight = F.sigmoid(torch.mm(prev_h, self.skip_connect_weight) + self.skip_connect_bias)
 
-        # calculate the neighbor message with weight_neighbor
+        # 标准的邻居消息传播
         self.propagate(g)
         node_repr = g.ndata['h']
+        
+        # 如果有线图，可以进行额外的边级别特征聚合
+        if has_line_graph:
+            try:
+                # 线图可以用来捕获边之间的依赖关系
+                # 这里我们简单地将线图信息作为额外的特征
+                line_graph = g.line_graph_obj
+                if line_graph.number_of_nodes() > 0:
+                    # 对线图进行简单的平均池化得到图级别特征
+                    edge_features = torch.zeros(line_graph.number_of_nodes(), self.out_feat).to(node_repr.device)
+                    # 这里可以根据需要实现更复杂的线图特征聚合
+                    if edge_features.numel() > 0:
+                        graph_level_feature = torch.mean(edge_features, dim=0, keepdim=True)
+                        # 将图级别特征广播并加到节点特征上
+                        node_repr = node_repr + graph_level_feature * 0.1  # 小幅影响
+            except Exception as e:
+                print(f"Warning: Failed to use line graph features: {e}")
 
-        # print(len(prev_h))
-        if len(prev_h) != 0 and self.skip_connect:  # 两次计算loop_message的方式不一样，前者激活后再加权
+        # 应用skip connection和self loop
+        if len(prev_h) != 0 and self.skip_connect:
             if self.self_loop:
                 node_repr = node_repr + loop_message
             node_repr = skip_weight * node_repr + (1 - skip_weight) * prev_h

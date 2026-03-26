@@ -1,0 +1,372 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.3.0 Chrome/140.0.7339.249 Electron/38.7.2 Safari/537.36" version="29.3.0">
+  <diagram id="YOPVURR3BZrD12peMwRu" name="第 1 页">
+    <mxGraphModel dx="1072" dy="630" grid="1" gridSize="2" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="1" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title_a" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=14;" value="(a) 传统建模的信息损失：复杂语义被简化为静态权重" vertex="1">
+          <mxGeometry height="30" width="400" x="133" y="344" as="geometry" />
+        </mxCell>
+        <mxCell id="trans_arrow" edge="1" parent="1" style="shape=flexArrow;endArrow=classic;html=1;fillColor=#f5f5f5;strokeColor=#666666;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="297" y="182" as="sourcePoint" />
+            <mxPoint x="377" y="182" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="group_model" connectable="0" parent="1" style="group;rounded=0;" value="" vertex="1">
+          <mxGeometry height="200" width="240" x="352" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="node_A_m" parent="group_model" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;dashed=1;fontFamily=Times New Roman;rounded=0;" value="Vec(A)" vertex="1">
+          <mxGeometry height="60" width="60" x="90" as="geometry" />
+        </mxCell>
+        <mxCell id="node_B_m" parent="group_model" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;dashed=1;fontFamily=Times New Roman;rounded=0;" value="Vec(B)" vertex="1">
+          <mxGeometry height="60" width="60" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="node_C_m" parent="group_model" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;dashed=1;fontFamily=Times New Roman;rounded=0;" value="Vec(C)" vertex="1">
+          <mxGeometry height="60" width="60" x="180" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_AB_m" edge="1" parent="group_model" source="node_A_m" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#999999;labelBackgroundColor=#ffffff;fontColor=#999999;dashed=1;fontFamily=Times New Roman;rounded=0;" target="node_B_m" value="w=0.5">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_AC_m" edge="1" parent="group_model" source="node_A_m" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#999999;labelBackgroundColor=#ffffff;fontColor=#999999;dashed=1;fontFamily=Times New Roman;rounded=0;" target="node_C_m" value="w=0.8">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="rel_BC_m" edge="1" parent="group_model" source="node_B_m" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#999999;labelBackgroundColor=#ffffff;fontColor=#999999;dashed=1;fontFamily=Times New Roman;rounded=0;" target="node_C_m" value="w=0.3">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="warning" parent="group_model" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#e51400;strokeColor=#B20000;fontColor=#ffffff;fontStyle=1;fontSize=20;rounded=0;" value="!" vertex="1">
+          <mxGeometry height="30" width="30" x="105" y="88" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-37" parent="group_model" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#EA6B66;" value="&lt;font style=&quot;font-size: 11px;&quot;&gt;关系组合模式被压缩为独立权重&lt;br&gt;语义信息丢失&lt;/font&gt;" vertex="1">
+          <mxGeometry height="30" width="158" x="44" y="119" as="geometry" />
+        </mxCell>
+        <mxCell id="title_b" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=14;" value="(b) 现有时间建模的“近视效应”：忽视长期历史依赖" vertex="1">
+          <mxGeometry height="30" width="360" x="782" y="374" as="geometry" />
+        </mxCell>
+        <mxCell id="timeline_arrow" edge="1" parent="1" style="endArrow=classic;html=1;strokeColor=#000000;strokeWidth=2;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="750" y="250" as="sourcePoint" />
+            <mxPoint x="1150" y="250" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="time_label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="时间 T" vertex="1">
+          <mxGeometry height="20" width="40" x="1110" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="far_history_group" connectable="0" parent="1" style="group;rounded=0;" value="" vertex="1">
+          <mxGeometry height="90" width="80" x="760" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="far_event" parent="far_history_group" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;rounded=0;" value="关键事件&#xa;(T-100)" vertex="1">
+          <mxGeometry height="60" width="60" x="10" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="far_point" parent="far_history_group" style="ellipse;whiteSpace=wrap;html=1;fillColor=#000000;rounded=0;" value="" vertex="1">
+          <mxGeometry height="10" width="10" x="35" y="95" as="geometry" />
+        </mxCell>
+        <mxCell id="forget_gap" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#999999;rounded=0;" value="信息稀释/遗忘" vertex="1">
+          <mxGeometry height="26" width="88" x="849" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="gap_line" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;strokeColor=#999999;rounded=0;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="863" y="233" as="sourcePoint" />
+            <mxPoint x="923" y="233" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="near_history_group" connectable="0" parent="1" style="group;rounded=0;" value="" vertex="1">
+          <mxGeometry height="110" width="80" x="943" y="144" as="geometry" />
+        </mxCell>
+        <mxCell id="near_event" parent="near_history_group" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;rounded=0;" value="近期波动&#xa;(T-1)" vertex="1">
+          <mxGeometry height="60" width="60" x="10" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="near_point" parent="near_history_group" style="ellipse;whiteSpace=wrap;html=1;fillColor=#000000;rounded=0;" value="" vertex="1">
+          <mxGeometry height="10" width="10" x="35" y="95" as="geometry" />
+        </mxCell>
+        <mxCell id="current_pred_group" connectable="0" parent="1" style="group;rounded=0;" value="" vertex="1">
+          <mxGeometry height="157" width="90" x="1060" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="pred_target" parent="current_pred_group" style="ellipse;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;rounded=0;" value="预测目标&#xa;(T)" vertex="1">
+          <mxGeometry height="70" width="70" x="10" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="cur_point" parent="current_pred_group" style="ellipse;whiteSpace=wrap;html=1;fillColor=#000000;rounded=0;" value="" vertex="1">
+          <mxGeometry height="10" width="10" x="40" y="105" as="geometry" />
+        </mxCell>
+        <mxCell id="xRaNY_3RJOrAT38ZazD_-10" parent="current_pred_group" style="shape=curlyBracket;whiteSpace=wrap;html=1;rounded=1;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;rotation=-90;" value="" vertex="1">
+          <mxGeometry height="127" width="21" x="-24" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="vision_text" parent="current_pred_group" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontColor=#666666;" value="&lt;span&gt;现有模型的有效视窗&lt;/span&gt;" vertex="1">
+          <mxGeometry height="20" width="120" x="-73.5" y="118" as="geometry" />
+        </mxCell>
+        <mxCell id="conn_strong" edge="1" parent="1" source="near_event" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#000000;rounded=0;" target="pred_target" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="conn_weak" edge="1" parent="1" source="pred_target" style="endArrow=none;dashed=1;html=1;strokeWidth=2;strokeColor=#FF3333;startArrow=classic;startFill=1;rounded=0;" target="far_event" value="依赖断裂">
+          <mxGeometry height="50" relative="1" width="50" x="0.0361" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1105" y="100" />
+              <mxPoint x="800" y="100" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cross_mark" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#FF0000;fontSize=24;fontStyle=1;" value="X" vertex="1">
+          <mxGeometry height="40" width="40" x="960" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="xRaNY_3RJOrAT38ZazD_-11" connectable="0" parent="1" style="group" value="" vertex="1">
+          <mxGeometry height="200" width="240" x="78" y="86" as="geometry" />
+        </mxCell>
+        <mxCell id="xRaNY_3RJOrAT38ZazD_-12" parent="xRaNY_3RJOrAT38ZazD_-11" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" value="主机厂商" vertex="1">
+          <mxGeometry height="60" width="60" x="90" as="geometry" />
+        </mxCell>
+        <mxCell id="xRaNY_3RJOrAT38ZazD_-13" parent="xRaNY_3RJOrAT38ZazD_-11" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=10;" value="芯片供应商" vertex="1">
+          <mxGeometry height="60" width="60" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="xRaNY_3RJOrAT38ZazD_-14" parent="xRaNY_3RJOrAT38ZazD_-11" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" value="竞品公司" vertex="1">
+          <mxGeometry height="60" width="60" x="180" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="xRaNY_3RJOrAT38ZazD_-15" edge="1" parent="xRaNY_3RJOrAT38ZazD_-11" source="xRaNY_3RJOrAT38ZazD_-12" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#00CC00;labelBackgroundColor=#ffffff;fontColor=#009900;fontSize=11;" target="xRaNY_3RJOrAT38ZazD_-13" value="独家采购">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="120" y="70" as="sourcePoint" />
+            <mxPoint x="40" y="140" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="xRaNY_3RJOrAT38ZazD_-16" edge="1" parent="xRaNY_3RJOrAT38ZazD_-11" source="xRaNY_3RJOrAT38ZazD_-12" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#FF3333;labelBackgroundColor=#ffffff;fontColor=#FF3333;fontSize=11;" target="xRaNY_3RJOrAT38ZazD_-14" value="专利诉讼">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="xRaNY_3RJOrAT38ZazD_-17" edge="1" parent="xRaNY_3RJOrAT38ZazD_-11" source="xRaNY_3RJOrAT38ZazD_-13" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#FF9933;labelBackgroundColor=#ffffff;fontColor=#FF9933;fontSize=11;" target="xRaNY_3RJOrAT38ZazD_-14" value="停止供货">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="q5BatEqx1y8qBX5X6GST-13" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#60a917;strokeColor=#2D7600;fontColor=#ffffff;fontStyle=1;fontSize=20;rounded=0;" value="✓" vertex="1">
+          <mxGeometry height="30" width="30" x="674" y="595" as="geometry" />
+        </mxCell>
+        <mxCell id="q5BatEqx1y8qBX5X6GST-14" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;autosize=1;resizable=0;fontColor=light-dark(#60a917, #ededed);" value="语义权重保留" vertex="1">
+          <mxGeometry height="28" width="92" x="646" y="628" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;autosize=1;resizable=0;" value="&lt;span style=&quot;font-size: 11px; text-wrap-mode: nowrap; background-color: rgb(255, 255, 255);&quot;&gt;强依赖&lt;/span&gt;" vertex="1">
+          <mxGeometry height="28" width="52" x="1013" y="162" as="geometry" />
+        </mxCell>
+        <mxCell id="q5BatEqx1y8qBX5X6GST-16" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;autosize=1;resizable=0;" value="&lt;span style=&quot;font-size: 11px; text-wrap-mode: nowrap; background-color: rgb(255, 255, 255);&quot;&gt;现有模型建模过程&lt;/span&gt;" vertex="1">
+          <mxGeometry height="30" width="110" x="278" y="144" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-2" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;fontColor=#333333;" value="&lt;b&gt;(a) 实体-关系建模的语义稀释问题 (Semantic Dilution)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="400" x="98" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-3" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=23;fontSize=11;fillColor=#f5f5f5;strokeColor=#666666;" value="真实复杂事件逻辑 (Ground Truth)" vertex="1">
+          <mxGeometry height="190" width="220" x="78" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-4" parent="lSL10LDkLiNtOCopslR_-3" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="$$E_s$$" vertex="1">
+          <mxGeometry height="50" width="50" x="85" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-5" parent="lSL10LDkLiNtOCopslR_-3" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="$$E_o$$" vertex="1">
+          <mxGeometry height="50" width="50" x="20" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-6" parent="lSL10LDkLiNtOCopslR_-3" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="$$E_k$$" vertex="1">
+          <mxGeometry height="50" width="50" x="150" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-7" edge="1" parent="lSL10LDkLiNtOCopslR_-3" source="lSL10LDkLiNtOCopslR_-4" style="endArrow=classic;html=1;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;fontSize=10;" target="lSL10LDkLiNtOCopslR_-5" value="&lt;font color=&quot;#ff0000&quot;&gt;协同约束&lt;/font&gt;">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-8" edge="1" parent="lSL10LDkLiNtOCopslR_-3" source="lSL10LDkLiNtOCopslR_-4" style="endArrow=classic;html=1;exitX=1;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;fontSize=10;" target="lSL10LDkLiNtOCopslR_-6" value="非线性交互">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-9" edge="1" parent="lSL10LDkLiNtOCopslR_-3" style="curved=1;endArrow=classic;html=1;dashed=1;strokeColor=#FF3333;strokeWidth=1;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <Array as="points">
+              <mxPoint x="110" y="150" />
+            </Array>
+            <mxPoint x="70" y="135" as="sourcePoint" />
+            <mxPoint x="150" y="135" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-10" parent="lSL10LDkLiNtOCopslR_-3" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;fontColor=#FF3333;" value="Edge-to-Edge 缺失" vertex="1">
+          <mxGeometry height="20" width="80" x="70" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-11" edge="1" parent="1" style="shape=flexArrow;endArrow=classic;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" value="主流架构建模">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="308" y="695" as="sourcePoint" />
+            <mxPoint x="378" y="695" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-12" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=23;fontSize=11;fillColor=#fff2cc;strokeColor=#d6b656;" value="建模后：关系语义被稀释" vertex="1">
+          <mxGeometry height="190" width="200" x="388" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-13" parent="lSL10LDkLiNtOCopslR_-12" style="ellipse;whiteSpace=wrap;html=1;dashed=1;fillColor=none;" value="Vec(A)" vertex="1">
+          <mxGeometry height="50" width="50" x="75" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-14" parent="lSL10LDkLiNtOCopslR_-12" style="ellipse;whiteSpace=wrap;html=1;dashed=1;fillColor=none;" value="Vec(B)" vertex="1">
+          <mxGeometry height="50" width="50" x="20" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-15" parent="lSL10LDkLiNtOCopslR_-12" style="ellipse;whiteSpace=wrap;html=1;dashed=1;fillColor=none;" value="Vec(C)" vertex="1">
+          <mxGeometry height="50" width="50" x="130" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-16" edge="1" parent="lSL10LDkLiNtOCopslR_-12" source="lSL10LDkLiNtOCopslR_-13" style="endArrow=classic;html=1;strokeColor=#999999;fontSize=10;" target="lSL10LDkLiNtOCopslR_-14" value="w=0.4">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-17" edge="1" parent="lSL10LDkLiNtOCopslR_-12" source="lSL10LDkLiNtOCopslR_-13" style="endArrow=classic;html=1;strokeColor=#999999;fontSize=10;" target="lSL10LDkLiNtOCopslR_-15" value="w=0.1">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-18" parent="lSL10LDkLiNtOCopslR_-12" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#e51400;fontColor=#ffffff;strokeColor=#B20000;fontSize=16;" value="&lt;b&gt;!&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="30" x="85" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-19" parent="lSL10LDkLiNtOCopslR_-12" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" value="&lt;font color=&quot;#cc0000&quot;&gt;高阶非线性交互丢失&lt;br&gt;关系降维为静态权重&lt;/font&gt;" vertex="1">
+          <mxGeometry height="40" width="100" x="50" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-20" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;fontColor=#333333;" value="&lt;b&gt;(b) 时间建模的“近视效应”与信号湮灭 (Near-sightedness &amp;amp; Signal Vanishing)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="500" x="98" y="830" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-21" edge="1" parent="1" style="endArrow=classic;html=1;strokeWidth=2;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="98" y="950" as="sourcePoint" />
+            <mxPoint x="588" y="950" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-22" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;" value="时间轴 (Time)" vertex="1">
+          <mxGeometry height="20" width="80" x="548" y="955" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-23" edge="1" parent="1" style="curved=1;endArrow=none;html=1;strokeColor=#EA6B66;strokeWidth=2;fontSize=10;fontColor=#EA6B66;verticalAlign=bottom;" value="历史规律信号强度">
+          <mxGeometry height="50" relative="1" width="50" x="0.1034" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="188" y="900" />
+              <mxPoint x="288" y="940" />
+              <mxPoint x="438" y="945" />
+            </Array>
+            <mxPoint x="138" y="890" as="sourcePoint" />
+            <mxPoint x="538" y="948" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-24" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" value="远程关键规律&lt;br&gt;(Long-term)" vertex="1">
+          <mxGeometry height="60" width="60" x="108" y="870" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-25" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" value="近期噪声&lt;br&gt;(Local)" vertex="1">
+          <mxGeometry height="50" width="50" x="418" y="890" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-26" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;fontStyle=1;" value="预测目标" vertex="1">
+          <mxGeometry height="50" width="50" x="518" y="890" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-27" edge="1" parent="1" source="lSL10LDkLiNtOCopslR_-24" style="endArrow=none;dashed=1;html=1;strokeColor=#FF3333;strokeWidth=2;fontSize=11;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;startArrow=block;startFill=0;endArrow=block;endFill=0;" target="lSL10LDkLiNtOCopslR_-25" value="&lt;font color=&quot;#ff0000&quot;&gt;信息稀释 / 依赖断裂&lt;/font&gt;">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-28" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#FF0000;fontSize=28;" value="&lt;b&gt;X&lt;/b&gt;" vertex="1">
+          <mxGeometry height="40" width="40" x="268" y="880" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-29" parent="1" style="shape=curlyBracket;whiteSpace=wrap;html=1;rounded=1;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;rotation=-90;" value="" vertex="1">
+          <mxGeometry height="130" width="20" x="453" y="850" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-30" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#666666;" value="现有模型“近视”视窗" vertex="1">
+          <mxGeometry height="20" width="110" x="463" y="865" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-31" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;fontColor=#cc0000;" value="历史连贯性缺失 (Blind Zone)" vertex="1">
+          <mxGeometry height="30" width="160" x="178" y="955" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-32" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;" value="&lt;b&gt;(a) 实体-关系交互建模：从静态权重到联合嵌入&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="340" x="819" y="734" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-33" parent="1" style="swimlane;whiteSpace=wrap;html=1;dashed=1;dashPattern=1 4;fontSize=11;startSize=20;" value="现有方法 (Existing Methods)" vertex="1">
+          <mxGeometry height="180" width="180" x="799" y="774" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-34" parent="lSL10LDkLiNtOCopslR_-33" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#f5f5f5;strokeColor=#666666;" value="$$E_s$$" vertex="1">
+          <mxGeometry height="40" width="40" x="60" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-35" parent="lSL10LDkLiNtOCopslR_-33" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#f5f5f5;strokeColor=#666666;" value="$$E_o$$" vertex="1">
+          <mxGeometry height="40" width="40" x="110" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-36" edge="1" parent="lSL10LDkLiNtOCopslR_-33" source="lSL10LDkLiNtOCopslR_-34" style="endArrow=classic;html=1;exitX=1;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=0;fontSize=10;labelBackgroundColor=none;" target="lSL10LDkLiNtOCopslR_-35" value="$$w \in [0,1]$$">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-38" parent="1" style="swimlane;whiteSpace=wrap;html=1;fontSize=11;startSize=20;fillColor=#F8F9FA;" value="本方案 (Proposed Mechanism)" vertex="1">
+          <mxGeometry height="180" width="220" x="1019" y="774" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-39" parent="lSL10LDkLiNtOCopslR_-38" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="$$h_s(t)$$" vertex="1">
+          <mxGeometry height="50" width="50" x="20" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-40" parent="lSL10LDkLiNtOCopslR_-38" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="$$h_o(t)$$" vertex="1">
+          <mxGeometry height="50" width="50" x="150" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-41" parent="lSL10LDkLiNtOCopslR_-38" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" value="$$h_r(t)$$" vertex="1">
+          <mxGeometry height="30" width="70" x="75" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-42" parent="lSL10LDkLiNtOCopslR_-38" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" value="$$\otimes$$" vertex="1">
+          <mxGeometry height="30" width="30" x="95" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-43" edge="1" parent="lSL10LDkLiNtOCopslR_-38" source="lSL10LDkLiNtOCopslR_-39" style="endArrow=classic;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="lSL10LDkLiNtOCopslR_-42" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-44" edge="1" parent="lSL10LDkLiNtOCopslR_-38" source="lSL10LDkLiNtOCopslR_-40" style="endArrow=classic;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="lSL10LDkLiNtOCopslR_-42" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-45" edge="1" parent="lSL10LDkLiNtOCopslR_-38" source="lSL10LDkLiNtOCopslR_-41" style="endArrow=classic;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;dashed=1;" target="lSL10LDkLiNtOCopslR_-42" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-46" parent="lSL10LDkLiNtOCopslR_-38" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontColor=#60A917;" value="实体与关系时空联合嵌入&lt;br&gt;(Edge-to-Edge 交互)" vertex="1">
+          <mxGeometry height="30" width="120" x="50" y="145" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-47" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;" value="&lt;b&gt;(b) 时间建模演化：从局部近视到全局捕捉&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="340" x="906" y="474" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-48" edge="1" parent="1" style="endArrow=classic;html=1;strokeWidth=2;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="906" y="594" as="sourcePoint" />
+            <mxPoint x="1326" y="594" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-49" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;" value="Time $$t$$" vertex="1">
+          <mxGeometry height="20" width="60" x="1306" y="599" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-50" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;" value="" vertex="1">
+          <mxGeometry height="10" width="10" x="946" y="589" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-51" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" value="$$T-k$$&lt;br&gt;(长期历史)" vertex="1">
+          <mxGeometry height="30" width="60" x="921" y="604" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-52" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;" value="" vertex="1">
+          <mxGeometry height="10" width="10" x="1226" y="589" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-53" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;" value="$$T-1$$&lt;br&gt;(近期波动)" vertex="1">
+          <mxGeometry height="30" width="60" x="1201" y="604" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-54" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#FFD966;strokeColor=#D6B656;" value="" vertex="1">
+          <mxGeometry height="10" width="10" x="1286" y="589" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-55" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;fontStyle=1;" value="$$T$$&lt;br&gt;(预测)" vertex="1">
+          <mxGeometry height="30" width="40" x="1271" y="604" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-56" edge="1" parent="1" style="curved=1;endArrow=none;html=1;strokeColor=#EA6B66;dashed=1;strokeWidth=2;fontSize=9;fontColor=#EA6B66;verticalAlign=bottom;" value="信息衰减 (Information Decay)">
+          <mxGeometry height="50" relative="1" width="50" x="0.1034" y="10" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1026" y="584" />
+              <mxPoint x="1166" y="584" />
+              <mxPoint x="1226" y="574" />
+            </Array>
+            <mxPoint x="946" y="574" as="sourcePoint" />
+            <mxPoint x="1286" y="534" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-57" parent="1" style="shape=curlyBracket;whiteSpace=wrap;html=1;rounded=1;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;rotation=-90;" value="" vertex="1">
+          <mxGeometry height="70" width="20" x="1231" y="544" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-58" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;fontColor=#666666;" value="局部视窗" vertex="1">
+          <mxGeometry height="20" width="40" x="1221" y="569" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-59" edge="1" parent="1" style="curved=1;endArrow=classic;html=1;strokeColor=#007FFF;strokeWidth=2;fontSize=10;fontColor=#007FFF;fontStyle=1;" value="全局演化规律捕捉">
+          <mxGeometry height="50" relative="1" width="50" x="-0.0381" y="15" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1046" y="514" />
+              <mxPoint x="1196" y="514" />
+            </Array>
+            <mxPoint x="951" y="584" as="sourcePoint" />
+            <mxPoint x="1291" y="584" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-60" parent="1" style="text;html=1;strokeColor=#dddddd;fillColor=#ffffff;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;spacingLeft=4;" value="&lt;font color=&quot;#ea6b66&quot;&gt;-- 现有模型：信号湮灭&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#007fff&quot;&gt;— 本方案：长效依赖保留&lt;/font&gt;" vertex="1">
+          <mxGeometry height="40" width="110" x="906" y="514" as="geometry" />
+        </mxCell>
+        <mxCell id="loss_text" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontColor=#FF0000;" value="语义交互丢失" vertex="1">
+          <mxGeometry height="20" width="100" x="570" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="lSL10LDkLiNtOCopslR_-85" parent="1" style="text;whiteSpace=wrap;html=1;" value="&lt;span style=&quot;color: rgb(153, 153, 153); font-family: Helvetica; font-size: 9px; font-style: italic; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 400; letter-spacing: normal; orphans: 2; text-align: center; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: normal; text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; float: none; display: inline !important;&quot;&gt;注：跨时间的事件关系在聚合过程中被统一建模&lt;/span&gt;" vertex="1">
+          <mxGeometry height="30" width="210" x="374" y="284" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

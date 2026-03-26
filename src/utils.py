@@ -12,6 +12,7 @@ import src.knowledge_graph as knwlgrh
 from collections import defaultdict
 import csv
 import os
+from scipy.sparse import coo_matrix
 
 #######################################################################
 #
@@ -154,6 +155,160 @@ def r2e(triplets, num_rels):
     return uniq_r, r_len, e_idx
 
 
+#######################################################################
+#
+# Line Graph and Probability Matrix (PM_PD) Functions
+#
+#######################################################################
+
+def change_edges(edges):
+    """
+    重新映射边列表中的节点ID
+    将全局节点ID映射为连续的局部节点ID(从0开始)
+    
+    参数:
+        edges: numpy数组 shape=(n, 3), 每行为 [tail, head, relation]
+    
+    返回:
+        edges_list: 重新映射后的边列表 [head, relation, tail]
+    """
+    edges_list = []
+    node_id_dic = {}
+    
+    i = 0
+    for line in edges:
+        head = line[1]  # 原始为tail位置
+        tail = line[0]  # 原始为head位置
+        rel = line[2]
+        
+        # 建立节点ID映射字典
+        if head not in node_id_dic:
+            node_id_dic[head] = i
+            i = i + 1
+        if tail not in node_id_dic:
+            node_id_dic[tail] = i
+            i = i + 1
+        
+        # 使用新的连续ID
+        edges_list.append([node_id_dic[head], rel, node_id_dic[tail]])
+    
+    edges_list = np.array(edges_list)
+    return edges_list
+
+
+def sparse2th(mat, shape):
+    """
+    将scipy稀疏矩阵转换为PyTorch稀疏张量
+    
+    参数:
+        mat: scipy.sparse.coo_matrix 稀疏矩阵
+        shape: tuple 目标张量的形状
+    
+    返回:
+        tensor: torch.sparse.FloatTensor
+    """
+    value = mat.data
+    indices = torch.LongTensor([mat.row, mat.col])
+    tensor = torch.sparse.FloatTensor(indices, torch.from_numpy(value).float(), shape)
+    return tensor
+
+
+def cal_pmpd(edges, num_nodes):
+    """
+    计算概率矩阵(Probability Matrix, PM_PD)
+    这是一个关联矩阵,表示节点与边之间的关系:
+        - 如果节点是边的头节点(source),值为 +1
+        - 如果节点是边的尾节点(target),值为 -1
+        - 否则为 0
+    
+    矩阵维度: (num_nodes, num_edges)
+    
+    参数:
+        edges: 三元组列表 [head, relation, tail]
+        num_nodes: 图中节点总数
+    
+    返回:
+        data: torch.sparse.FloatTensor 稀疏关联矩阵
+    """
+    # 重新映射节点ID
+    use_edges = change_edges(edges)
+    src, rel, dst = use_edges.transpose()
+    
+    coo_rows = []  # 节点索引
+    coo_cols = []  # 边索引
+    coo_data = []  # 关联值 (+1 或 -1)
+    
+    # 处理源节点(头实体): 值为 +1
+    for index, data in enumerate(src):
+        coo_rows.append(data)
+        coo_cols.append(index)
+        coo_data.append(1)
+    
+    # 处理目标节点(尾实体): 值为 -1
+    for index, data in enumerate(dst):
+        coo_rows.append(data)
+        coo_cols.append(index)
+        coo_data.append(-1)
+    
+    coo_rows = np.array(coo_rows)
+    coo_cols = np.array(coo_cols)
+    coo_data = np.array(coo_data)
+    
+    # 创建scipy稀疏矩阵(COO格式)
+    data = coo_matrix((coo_data, (coo_rows, coo_cols)))
+    
+    # 转换为PyTorch稀疏张量
+    data = sparse2th(data, (num_nodes, len(edges)))
+    
+    return data
+
+
+def build_line_graph_and_pm(graph, all_triples, num_nodes):
+    """
+    构建线图和概率矩阵的完整流程
+    
+    参数:
+        graph: DGL图对象
+        all_triples: 三元组数组 (包含原始三元组和反向三元组)
+        num_nodes: 节点总数
+    
+    返回:
+        lg: DGL线图对象
+        pm_pd: 概率矩阵(稀疏张量)
+    """
+    # 1. 计算概率矩阵 PM_PD
+    pm_pd = cal_pmpd(all_triples, num_nodes)
+    
+    # 2. 构建线图 (使用DGL内置方法)
+    # 线图的节点对应原图的边
+    # 如果原图中两条边共享一个节点,则在线图中这两个节点(对应原图的边)相连
+    lg = graph.line_graph(backtracking=False)
+    # backtracking=False: 不允许回溯,即 (u->v, v->u) 不会在线图中相连
+    
+    return lg, pm_pd
+
+
+def prepare_triples_with_inverse(triples, num_rels):
+    """
+    准备三元组数据,包含反向关系
+    
+    参数:
+        triples: 原始三元组 numpy数组
+        num_rels: 关系数量
+    
+    返回:
+        all_triples: 包含原始和反向三元组的numpy数组
+    """
+    # 创建反向三元组 (tail, relation+num_rels, head)
+    inverse_triples = triples[:, [2, 1, 0]]  # 反转头尾实体
+    inverse_triples[:, 1] = inverse_triples[:, 1] + num_rels  # 反向关系ID偏移
+    
+    # 合并原始和反向三元组
+    all_triples = np.concatenate([triples, inverse_triples], axis=0)
+    
+    return all_triples
+
+
 def comp_deg_norm(g):
         in_deg = g.in_degrees(range(g.number_of_nodes())).float()
         in_deg[torch.nonzero(in_deg == 0).view(-1)] = 1
@@ -161,18 +316,28 @@ def comp_deg_norm(g):
         return norm
 
 
-def build_sub_graph(num_nodes, num_rels, triples, idx, use_cuda, gpu):
+def build_sub_graph(num_nodes, num_rels, triples, idx, use_cuda, gpu, build_line_graph=False):
     """
-    :param node_id: node id in the large graph
-    :param num_rels: number of relation
-    :param src: relabeled src id
-    :param rel: original rel id
-    :param dst: relabeled dst id
-    :param idx: snapshot index
-    :param use_cuda:
-    :return:
+    构建子图，可选地构建线图和概率矩阵
+    
+    参数:
+        num_nodes: 节点数量
+        num_rels: 关系数量
+        triples: 三元组
+        idx: 快照索引
+        use_cuda: 是否使用CUDA
+        gpu: GPU编号
+        build_line_graph: 是否构建线图和概率矩阵
+    
+    返回:
+        g: DGL图对象，可能包含line_graph和pm_pd属性
     """
     src, rel, dst = triples.transpose()
+    
+    # 准备包含反向关系的所有三元组
+    all_triples = prepare_triples_with_inverse(triples, num_rels)
+    
+    # 构建图的边
     src, dst = np.concatenate((src, dst)), np.concatenate((dst, src))
     rel = np.concatenate((rel, rel + num_rels))
     time = [idx] * len(rel)
@@ -187,13 +352,21 @@ def build_sub_graph(num_nodes, num_rels, triples, idx, use_cuda, gpu):
     g.edata['type'] = torch.LongTensor(rel)
     g.edata['time'] = torch.LongTensor(time)
 
-    # uniq_r, r_len, r_to_e = r2e(triples, num_rels)
-    # g.uniq_r = uniq_r
-    # g.r_to_e = r_to_e
-    # g.r_len = r_len
-    # if use_cuda:
-    #     g.to(gpu)
-    #     g.r_to_e = torch.from_numpy(np.array(r_to_e))
+    # 构建线图和概率矩阵（如果需要）
+    if build_line_graph:
+        try:
+            line_graph, pm_pd = build_line_graph_and_pm(g, all_triples, num_nodes)
+            g.line_graph_obj = line_graph
+            g.pm_pd = pm_pd
+            if use_cuda:
+                if hasattr(pm_pd, 'to'):
+                    g.pm_pd = pm_pd.to(gpu)
+                if hasattr(line_graph, 'to'):
+                    g.line_graph_obj = line_graph.to(gpu)
+        except Exception as e:
+            print(f"Warning: Failed to build line graph and PM_PD: {e}")
+            g.line_graph_obj = None
+            g.pm_pd = None
 
     return g
 

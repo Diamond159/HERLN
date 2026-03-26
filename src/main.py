@@ -84,7 +84,7 @@ def test(model, history_list, test_list, num_rels, num_nodes, class_g, use_cuda,
         input_list = [snap for snap in history_list[-args.test_history_len:]]
 
     for time_idx, test_snap in enumerate(tqdm(test_list)):
-        history_glist = [build_sub_graph(num_nodes, num_rels, input_list[i], i, use_cuda, args.gpu) for i in range(len(input_list))]
+        history_glist = [build_sub_graph(num_nodes, num_rels, input_list[i], i, use_cuda, args.gpu, build_line_graph=getattr(args, 'enable_line_graph', False)) for i in range(len(input_list))]
         #history_glist = [utils.build_history_graph(num_nodes, num_rels, input_list, use_cuda, args.gpu)]
         test_triples_input = torch.LongTensor(test_snap).cuda() if use_cuda else torch.LongTensor(test_snap)
         test_triples_input = test_triples_input.to(args.gpu)
@@ -279,6 +279,81 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
         print("--------------{} not exist, Change mode to train and generate stat for testing----------------\n".format(model_state_file))
     else:
         print("----------------------------------------start training----------------------------------------\n")
+        
+        # 准备交替训练数据（如果启用）
+        if getattr(args, 'alternating_training', False):
+            print(f"🔄 启用交替训练模式，反向训练比例: {getattr(args, 'inverse_training_ratio', 0.5)}")
+            # 为每个时间步创建反向三元组
+            inverse_train_list = []
+            for triples in train_list:
+                if len(triples) > 0:
+                    inverse_triples = utils.create_inverse_triples(triples, num_rels)
+                    inverse_train_list.append(inverse_triples)
+                else:
+                    inverse_train_list.append(np.array([]).reshape(0, 3))
+        
+        # ERD-Net两阶段训练策略
+        if getattr(args, 'two_stage_training', False):
+            print("🔄 启动ERD-Net两阶段训练策略")
+            
+            # 阶段1：预训练基础嵌入
+            print("📚 阶段1：预训练实体和关系嵌入")
+            for epoch in range(getattr(args, 'pretrain_epochs', 20)):
+                model.train()
+                losses = []
+                
+                idx = [_ for _ in range(len(train_list))]
+                random.shuffle(idx)
+
+                for train_sample_num in tqdm(idx[:len(idx)//2]):  # 只使用一半数据进行预训练
+                    if train_sample_num == 0: continue
+                    output = train_list[train_sample_num:train_sample_num+1]
+                    if args.train_history_len == -1:
+                        input_list = train_list[0: train_sample_num]
+                    else:
+                        if train_sample_num - args.train_history_len<0:
+                            input_list = train_list[0: train_sample_num]
+                        else:
+                            input_list = train_list[train_sample_num - args.train_history_len:
+                                                train_sample_num]
+                    
+                    # 构建历史图
+                    history_glist = [build_sub_graph(num_nodes, num_rels, input_list[i], i, use_cuda, args.gpu, build_line_graph=getattr(args, 'enable_line_graph', False)) for i in range(len(input_list))]
+                    output = [torch.from_numpy(_).long().cuda() for _ in output] if use_cuda else [torch.from_numpy(_).long() for _ in output]
+                    
+                    # 预训练损失（重点学习基础嵌入）
+                    loss_e, loss_r = model.get_loss(history_glist, output[0], class_g, use_cuda)
+                    loss = 0.7 * loss_e + 0.3 * loss_r  # 预训练阶段偏重实体学习
+                    losses.append(loss.item())
+
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_norm)
+                    optimizer.step()
+                    optimizer.zero_grad()
+
+                print(f"预训练 Epoch {epoch:04d} | 损失: {np.mean(losses):.4f}")
+            
+            # 阶段2：冻结嵌入，专注动态学习
+            print("🔒 阶段2：冻结嵌入，专注关系动态学习")
+            if getattr(args, 'freeze_entity_embs', False):
+                model.emb_ent.requires_grad = False
+                print("✅ 实体嵌入已冻结")
+            if getattr(args, 'freeze_relation_embs', False):
+                model.emb_rel.requires_grad = False
+                print("✅ 关系嵌入已冻结")
+                
+            # 为动态组件使用不同学习率
+            if getattr(args, 'use_relation_dynamics', False) and hasattr(model, 'global_rel_dynamics'):
+                rel_dynamics_params = list(model.global_rel_dynamics.parameters())
+                copy_gen_params = list(model.copy_gen_decoder.parameters()) if getattr(args, 'use_copy_generation', False) and hasattr(model, 'copy_gen_decoder') else []
+                other_params = [p for p in model.parameters() if p.requires_grad and p not in rel_dynamics_params + copy_gen_params]
+                
+                optimizer = torch.optim.AdamW([
+                    {'params': rel_dynamics_params + copy_gen_params, 'lr': getattr(args, 'relation_dynamics_lr', 0.001)},
+                    {'params': other_params, 'lr': args.lr}
+                ], weight_decay=1e-5)
+                print("✅ 为ERD-Net组件设置了专用学习率")
+        
         best_mrr = 0
         for epoch in range(args.n_epochs):
             model.train()
@@ -286,13 +361,36 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
             losses_e = []
             losses_r = []
             
+            # 交替训练统计
+            forward_count = 0
+            inverse_count = 0
 
             idx = [_ for _ in range(len(train_list))]
             random.shuffle(idx)
 
-            for train_sample_num in tqdm(idx):
+            for train_sample_num in tqdm(idx, desc=f"Epoch {epoch+1}/{args.n_epochs}", ncols=100, leave=False):
                 if train_sample_num == 0: continue
-                output = train_list[train_sample_num:train_sample_num+1]
+                
+                # 决定使用正向还是反向训练
+                use_inverse = False
+                if getattr(args, 'alternating_training', False):
+                    # 根据比例和随机性决定是否使用反向训练
+                    if random.random() < getattr(args, 'inverse_training_ratio', 0.5):
+                        use_inverse = True
+                        inverse_count += 1
+                    else:
+                        forward_count += 1
+                else:
+                    forward_count += 1
+                
+                # 选择训练数据
+                if use_inverse and getattr(args, 'alternating_training', False):
+                    output = inverse_train_list[train_sample_num:train_sample_num+1]
+                    training_mode = "inverse"
+                else:
+                    output = train_list[train_sample_num:train_sample_num+1]
+                    training_mode = "forward"
+                
                 if args.train_history_len == -1:
                     input_list = train_list[0: train_sample_num]
                 else:
@@ -305,13 +403,20 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                     update_class_embedding = False
                 else:
                     class_g = None
-                # generate history graph
-                history_glist = [build_sub_graph(num_nodes, num_rels, input_list[i], i, use_cuda, args.gpu) for i in range(len(input_list))]
-                #history_glist = [utils.build_history_graph(num_nodes, num_rels, input_list, use_cuda, args.gpu)]
+                # generate history graph with line graph support
+                history_glist = [build_sub_graph(num_nodes, num_rels, input_list[i], i, use_cuda, args.gpu, build_line_graph=getattr(args, 'enable_line_graph', False)) for i in range(len(input_list))]
+                
                 output = [torch.from_numpy(_).long().cuda() for _ in output] if use_cuda else [torch.from_numpy(_).long() for _ in output]
                 loss_e, loss_r = model.get_loss(history_glist, output[0], class_g, use_cuda)
                 loss_freq = model.relation_freq_reg()
-                loss = args.task_weight*loss_e + (1-args.task_weight)*loss_r + args.freq_reg*loss_freq
+                
+                # 应用反向训练的权重调整
+                if use_inverse and getattr(args, 'alternating_training', False):
+                    loss_weight = getattr(args, 'inverse_loss_weight', 1.0)
+                else:
+                    loss_weight = 1.0
+                
+                loss = loss_weight * (args.task_weight*loss_e + (1-args.task_weight)*loss_r) + args.freq_reg*loss_freq
                 losses.append(loss.item())
                 losses_e.append(loss_e.item())
                 losses_r.append(loss_r.item())
@@ -321,8 +426,24 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                 optimizer.step()
                 optimizer.zero_grad()
 
-            print("Epoch {:04d} | Ave Loss: {:.4f} | entity-relation:{:.4f}-{:.4f} Best MRR {:.4f} | Model {} "
-                  .format(epoch, np.mean(losses), np.mean(losses_e), np.mean(losses_r), best_mrr, model_name))
+            # 打印训练统计信息
+            if getattr(args, 'alternating_training', False):
+                erd_info = ""
+                if getattr(args, 'use_relation_dynamics', False):
+                    erd_info += " | 关系动态✅"
+                if getattr(args, 'use_copy_generation', False):
+                    erd_info += " | 复制生成✅"
+                print("Epoch {:04d} | Ave Loss: {:.4f} | entity-relation:{:.4f}-{:.4f} | Forward/Inverse: {}/{} | Best MRR {:.4f}{} | Model {} "
+                      .format(epoch, np.mean(losses), np.mean(losses_e), np.mean(losses_r), 
+                             forward_count, inverse_count, best_mrr, erd_info, model_name))
+            else:
+                erd_info = ""
+                if getattr(args, 'use_relation_dynamics', False):
+                    erd_info += " | 关系动态✅"
+                if getattr(args, 'use_copy_generation', False):
+                    erd_info += " | 复制生成✅"
+                print("Epoch {:04d} | Ave Loss: {:.4f} | entity-relation:{:.4f}-{:.4f} Best MRR {:.4f}{} | Model {} "
+                      .format(epoch, np.mean(losses), np.mean(losses_e), np.mean(losses_r), best_mrr, erd_info, model_name))
 
             # validation
             if epoch and epoch % args.evaluate_every == 0:

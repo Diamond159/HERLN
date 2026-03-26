@@ -113,6 +113,38 @@ parser.add_argument("--lie-rel-weight", type=float, default=0.01,
 parser.add_argument("--lie-pair-weight", type=float, default=0.01,
 					help="Lie regularization weight for entity pairs (for relation prediction)")
 
+# configuration for line graph and probability matrix
+parser.add_argument("--enable-line-graph", action='store_true', default=False,
+					help="enable line graph and probability matrix functionality")
+
+# configuration for alternating forward-inverse training
+parser.add_argument("--alternating-training", action='store_true', default=False,
+					help="enable alternating forward and inverse training to reduce overfitting")
+parser.add_argument("--inverse-training-ratio", type=float, default=0.5,
+					help="ratio of inverse training steps (0.0-1.0)")
+parser.add_argument("--inverse-loss-weight", type=float, default=1.0,
+					help="weight for inverse training loss")
+
+# ERD-Net innovations configuration
+parser.add_argument("--use-relation-dynamics", action='store_true', default=False,
+					help="enable ERD-Net global relation dynamics modeling")
+parser.add_argument("--use-copy-generation", action='store_true', default=False,
+					help="enable copy-generation mechanism for relation prediction")
+parser.add_argument("--copy-gen-alpha", type=float, default=0.5,
+					help="balance parameter between copy and generation (0.0-1.0)")
+parser.add_argument("--relation-dynamics-lr", type=float, default=0.001,
+					help="learning rate for relation dynamics components")
+
+# Two-stage training configuration  
+parser.add_argument("--two-stage-training", action='store_true', default=False,
+					help="enable two-stage training: pretrain + freeze embeddings")
+parser.add_argument("--pretrain-epochs", type=int, default=20,
+					help="number of pretraining epochs before freezing")
+parser.add_argument("--freeze-entity-embs", action='store_true', default=False,
+					help="freeze entity embeddings in stage 2")
+parser.add_argument("--freeze-relation-embs", action='store_true', default=False,
+					help="freeze relation embeddings in stage 2")
+
 # configuration for sequences stat
 parser.add_argument("--train-history-len", type=int, default=10,
 					help="history length")

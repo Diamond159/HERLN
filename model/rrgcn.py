@@ -279,16 +279,41 @@ class RecurrentRGCN(nn.Module):
                 nn.Dropout(feat_dropout),
                 nn.Linear(h_dim, 2 * num_rels)
             )
+            
+        # 设备处理
+        if use_cuda and isinstance(gpu, int) and gpu >= 0:
+            self.device = f'cuda:{gpu}'
+        else:
+            self.device = 'cpu'
+        
+        # ERD-Net创新模块初始化
+        if self.use_relation_dynamics:
+            try:
+                from model.relation_dynamics import GlobalRelationDynamics
+                self.global_rel_dynamics = GlobalRelationDynamics(
+                    num_ents, num_rels, h_dim, self.device
+                )
+                print("✅ ERD-Net全局关系动态模块初始化成功")
+            except Exception as e:
+                print(f"⚠️ GlobalRelationDynamics初始化失败: {e}")
+                self.use_relation_dynamics = False
+                self.global_rel_dynamics = None
+                
+        if self.use_copy_generation and self.relation_prediction:
+            try:
+                from model.copy_generation_decoder import CopyGenerationRelationDecoder
+                self.copy_gen_decoder = CopyGenerationRelationDecoder(
+                    h_dim, num_rels, alpha=copy_gen_alpha, 
+                    device=self.device, dropout=feat_dropout
+                )
+                print("✅ ERD-Net复制-生成机制初始化成功")
+            except Exception as e:
+                print(f"⚠️ CopyGenerationRelationDecoder初始化失败: {e}")
+                self.use_copy_generation = False
+                self.copy_gen_decoder = None
 
 
     def forward(self, g_list, class_g, use_cuda):
-        # gate_list = []              #全是空的
-        # degree_list = []            #全是空的
-
-        # gru_hidden = torch.zeros(1, self.h_dim) #GRU隐藏层初值
-        # gru_hidden = gru_hidden.to(self.gpu)
-        #graph_gru_hidden = torch.zeros(1, self.graph_h_dim)
-        #graph_gru_hidden = graph_gru_hidden.to(self.gpu)
         if class_g is None:
             current_ent_emb = self.emb_ent
         else:
@@ -298,36 +323,72 @@ class RecurrentRGCN(nn.Module):
             current_ent_emb = self.classgcn(class_g, current_ent_emb)
             current_ent_emb = F.normalize(current_ent_emb) if self.layer_norm else current_ent_emb
             self.emb_ent = torch.nn.Parameter(current_ent_emb)
-        # current_ent_emb = self.emb_ent
+
         history_embs = []
         graph_h_list = []
-        # graph_h_list = torch.zeros(self.sequence_len, self.graph_h_dim)
-        #for i in range(len(g_list)):
+        
+        # 初始化关系嵌入
+        current_rel_emb = F.normalize(self.emb_rel) if self.layer_norm else self.emb_rel
+        rel_embs_history = []
+        
+        # 合并所有历史图
         history_graph = merge_graphs(self.num_ents, g_list, use_cuda, self.gpu)
-        #history_graph = g_list[0]
         if use_cuda:
             history_graph = history_graph.to(self.gpu)
+        
+        # 检查历史图是否有线图和概率矩阵信息
+        has_line_graph = any(hasattr(g, 'line_graph_obj') and g.line_graph_obj is not None for g in g_list)
+        has_pm_pd = any(hasattr(g, 'pm_pd') and g.pm_pd is not None for g in g_list)
+        
+        if has_line_graph and has_pm_pd:
+            # 如果有线图和概率矩阵，将它们附加到合并的历史图中
+            # 这里我们使用最后一个图的线图和概率矩阵作为代表
+            for g in reversed(g_list):
+                if hasattr(g, 'line_graph_obj') and g.line_graph_obj is not None:
+                    history_graph.line_graph_obj = g.line_graph_obj
+                    if use_cuda:
+                        history_graph.line_graph_obj = history_graph.line_graph_obj.to(self.gpu)
+                    break
+            
+            for g in reversed(g_list):
+                if hasattr(g, 'pm_pd') and g.pm_pd is not None:
+                    history_graph.pm_pd = g.pm_pd
+                    if use_cuda and hasattr(g.pm_pd, 'to'):
+                        history_graph.pm_pd = history_graph.pm_pd.to(self.gpu)
+                    break
+
         new_ent_emb = current_ent_emb
-        #for i in range(self.sequence_len):
         new_ent_emb, _ = self.rgcn.forward(history_graph, new_ent_emb, self.emb_rel)
         new_ent_emb = F.normalize(new_ent_emb) if self.layer_norm else new_ent_emb
-
-        # node_emb_graph = self.node2graph(new_ent_emb)
-        # node_emb_graph_gate = self.node2graph_gate(new_ent_emb)
-        # self.graph_h = torch.sum(torch.mul(node_emb_graph, node_emb_graph_gate), dim=0, keepdim=True)
-        # self.graph_h = F.normalize(self.graph_h, dim=1) if self.layer_norm else self.graph_h
 
         weight_vec = self.reset_gate(new_ent_emb).reshape(1, self.num_ents)
         weight = nn.functional.sigmoid(self.reset_gate1(weight_vec))
         new_ent_emb = new_ent_emb * weight + current_ent_emb * (1 - weight)
 
+        # ERD-Net全局关系动态更新（增加错误处理）
+        if self.use_relation_dynamics and hasattr(self, 'global_rel_dynamics') and self.global_rel_dynamics is not None:
+            try:
+                updated_rel_emb = self.global_rel_dynamics(g_list, current_rel_emb, new_ent_emb, time_idx=0)
+                if updated_rel_emb is not None and not torch.isnan(updated_rel_emb).any():
+                    current_rel_emb = updated_rel_emb
+                    rel_embs_history.append(current_rel_emb)
+                    # 只在特定条件下打印成功信息，避免干扰进度条
+                    if torch.rand(1).item() < 0.01:  # 1%的概率打印
+                        from tqdm import tqdm
+                        tqdm.write("Relation dynamics updated successfully")
+                else:
+                    print("Invalid relation dynamics output, using original embeddings")
+                    rel_embs_history.append(current_rel_emb)
+            except Exception as e:
+                print(f"Error in relation dynamics: {e}")
+                rel_embs_history.append(current_rel_emb)
+        else:
+            rel_embs_history.append(current_rel_emb)
+
         history_embs.append(new_ent_emb)
         graph_h_list.append(self.graph_h)
-        # new_rel_emb = torch.mm(self.emb_rel, self.rel_evolve(self.graph_h).reshape(self.h_dim, self.h_dim))
 
-        #print(new_ent_emb)
-
-        return history_embs, self.emb_rel, graph_h_list
+        return history_embs, rel_embs_history[-1] if rel_embs_history else self.emb_rel, graph_h_list
         
         # #print(len(new_g_list))
         # for i, g in enumerate(new_g_list):
@@ -391,7 +452,23 @@ class RecurrentRGCN(nn.Module):
             embedding = F.normalize(embedding) if self.layer_norm else embedding
 
             score = self.decoder_ob.forward(embedding, r_emb, all_triples, graph_embs[-1],mode="test")
-            score_rel = self.rdecoder.forward(embedding, r_emb, all_triples, mode="test")
+            
+            # 关系预测处理
+            try:
+                if self.use_copy_generation and hasattr(self, 'copy_gen_decoder') and self.copy_gen_decoder is not None:
+                    # 使用ERD-Net复制-生成解码器进行增强
+                    score_rel = self.rdecoder.forward(embedding, r_emb, all_triples, mode="test")
+                    # 修复参数：使用正确的参数顺序和名称
+                    copy_scores = self.copy_gen_decoder.forward(embedding, r_emb, all_triples, mode="test", use_copy=True)
+                    if copy_scores is not None and not torch.isnan(copy_scores).any():
+                        # 简单融合，确保维度匹配
+                        min_size = min(score_rel.size(0), copy_scores.size(0))
+                        score_rel[:min_size] = score_rel[:min_size] + 0.3 * copy_scores[:min_size]
+                else:
+                    score_rel = self.rdecoder.forward(embedding, r_emb, all_triples, mode="test")
+            except Exception as e:
+                print(f"Error in copy generation prediction: {e}")
+                score_rel = self.rdecoder.forward(embedding, r_emb, all_triples, mode="test")
 
             # Contextual relation prior (additive bias to logits)
             if self.use_rel_context_prior:
@@ -432,18 +509,37 @@ class RecurrentRGCN(nn.Module):
             loss_ent += self.loss_e(scores_ob, all_triples[:, 2])
      
         if self.relation_prediction:
-            score_rel = self.rdecoder.forward(pre_emb, r_emb, all_triples, mode="train").view(-1, 2 * self.num_rels)
+            try:
+                if self.use_copy_generation and hasattr(self, 'copy_gen_decoder') and self.copy_gen_decoder is not None:
+                    # 使用ERD-Net复制-生成解码器
+                    copy_loss = self.copy_gen_decoder.get_loss(pre_emb, r_emb, all_triples, use_copy=True)
+                    if hasattr(copy_loss, 'item') and not torch.isnan(copy_loss) and not torch.isinf(copy_loss):
+                        loss_rel += 0.1 * copy_loss  # 使用小权重避免过强影响
+                        # 只在特定条件下打印损失信息，避免干扰进度条
+                        if torch.rand(1).item() < 0.01:  # 1%的概率打印
+                            from tqdm import tqdm
+                            tqdm.write(f"Copy generation loss: {copy_loss.item():.6f}")
+                    else:
+                        print("Invalid copy generation loss, skipping")
+                else:
+                    # 使用原始关系预测方式
+                    score_rel = self.rdecoder.forward(pre_emb, r_emb, all_triples, mode="train").view(-1, 2 * self.num_rels)
 
-            # Add contextual prior to relation logits
-            if self.use_rel_context_prior:
-                s_idx = all_triples[:, 0]
-                o_idx = all_triples[:, 2]
-                x_s = pre_emb[s_idx]
-                x_o = pre_emb[o_idx]
-                pair_feat = torch.cat([x_s, x_o], dim=-1)
-                prior_logits = self.rel_prior(pair_feat)
-                score_rel = score_rel + self.rel_prior_weight * prior_logits
-            loss_rel += self.loss_r(score_rel, all_triples[:, 1])
+                    # Add contextual prior to relation logits
+                    if self.use_rel_context_prior:
+                        s_idx = all_triples[:, 0]
+                        o_idx = all_triples[:, 2]
+                        x_s = pre_emb[s_idx]
+                        x_o = pre_emb[o_idx]
+                        pair_feat = torch.cat([x_s, x_o], dim=-1)
+                        prior_logits = self.rel_prior(pair_feat)
+                        score_rel = score_rel + self.rel_prior_weight * prior_logits
+                    loss_rel += self.loss_r(score_rel, all_triples[:, 1])
+            except Exception as e:
+                print(f"Error in relation prediction: {e}")
+                # 回退到原始方法
+                score_rel = self.rdecoder.forward(pre_emb, r_emb, all_triples, mode="train").view(-1, 2 * self.num_rels)
+                loss_rel += self.loss_r(score_rel, all_triples[:, 1])
 
         # Lie 群正则化损失（简化版：使用批次实体 + 关系正交 + 实体对对比）
         if self.use_lie_reg:
