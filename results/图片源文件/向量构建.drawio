@@ -1,0 +1,79 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" version="29.3.1">
+  <diagram id="c9AUmibJCNHnuIg22abi" name="第 1 页">
+    <mxGraphModel dx="1140" dy="605" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="axis_x" edge="1" parent="1" style="endArrow=classic;html=1;strokeWidth=1;endSize=6;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="160" y="400" as="sourcePoint" />
+            <mxPoint x="640" y="400" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label_x" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;" value="x" vertex="1">
+          <mxGeometry height="20" width="20" x="630" y="405" as="geometry" />
+        </mxCell>
+        <mxCell id="axis_y" edge="1" parent="1" style="endArrow=classic;html=1;strokeWidth=1;endSize=6;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="380" y="600" as="sourcePoint" />
+            <mxPoint x="380" y="160" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label_y" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;" value="y" vertex="1">
+          <mxGeometry height="20" width="20" x="355" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="origin" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=right;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;" value="0" vertex="1">
+          <mxGeometry height="20" width="20" x="350" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="vec_jiangsu" edge="1" parent="1" style="endArrow=classic;html=1;strokeWidth=1.5;endSize=6;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="380" y="400" as="sourcePoint" />
+            <mxPoint x="490" y="180" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl_jiangsu" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=bottom;whiteSpace=wrap;rounded=0;fontSize=14;" value="江苏" vertex="1">
+          <mxGeometry height="20" width="40" x="470" y="155" as="geometry" />
+        </mxCell>
+        <mxCell id="vec_anhui" edge="1" parent="1" style="endArrow=classic;html=1;strokeWidth=1.5;endSize=6;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="380" y="400" as="sourcePoint" />
+            <mxPoint x="490" y="270" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl_anhui" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=bottom;whiteSpace=wrap;rounded=0;fontSize=14;" value="安徽" vertex="1">
+          <mxGeometry height="20" width="40" x="470" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="vec_nanjing" edge="1" parent="1" style="endArrow=classic;html=1;strokeWidth=1.5;endSize=6;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="380" y="400" as="sourcePoint" />
+            <mxPoint x="580" y="290" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl_nanjing" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=bottom;whiteSpace=wrap;rounded=0;fontSize=14;" value="南京" vertex="1">
+          <mxGeometry height="20" width="40" x="585" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="vec_hefei" edge="1" parent="1" style="endArrow=classic;html=1;strokeWidth=1.5;endSize=6;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="380" y="400" as="sourcePoint" />
+            <mxPoint x="580" y="385" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl_hefei" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=14;" value="合肥" vertex="1">
+          <mxGeometry height="20" width="40" x="585" y="375" as="geometry" />
+        </mxCell>
+        <mxCell id="dash_jiangsu_nanjing" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;dashPattern=8 8;strokeWidth=1.5;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="490" y="180" as="sourcePoint" />
+            <mxPoint x="580" y="290" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="dash_anhui_hefei" edge="1" parent="1" style="endArrow=none;dashed=1;html=1;dashPattern=8 8;strokeWidth=1.5;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="490" y="270" as="sourcePoint" />
+            <mxPoint x="580" y="385" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
