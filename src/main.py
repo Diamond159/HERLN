@@ -1,8 +1,3 @@
-'''
-The code is modified based on RE-GCN: https://github.com/Lee-zix/RE-GCN
-
-'''
-
 from genericpath import isdir
 import itertools
 import os
@@ -33,14 +28,44 @@ from src.utils import build_sub_graph, merge_graphs
 class Logger(object):
     def __init__(self, filename='default.log', stream=sys.stdout):
         self.terminal = stream
-        self.log = open(filename, 'a')
+        if isinstance(filename, str):
+            self.log_files = [filename]
+        else:
+            self.log_files = list(filename)
+        self.logs = [open(f, 'a', encoding='utf-8') for f in self.log_files]
+        # 仅在形成完整行时写盘，避免 tqdm 的中间刷新污染日志
+        self._line_buffer = ""
+
+    def _write_line(self, line):
+        timestamp = datetime.today().strftime('%Y-%m-%d %H:%M:%S') + ':  '
+        for log in self.logs:
+            log.write(timestamp + line + '\n')
 
     def write(self, message):
         self.terminal.write(message)
-        self.log.write(datetime.today().strftime('%Y-%m-%d %H:%M:%S')+':  '+message)
+        for ch in message:
+            if ch == '\r':
+                # 覆盖式进度条刷新，不立即落盘
+                self._line_buffer = ""
+            elif ch == '\n':
+                self._write_line(self._line_buffer)
+                self._line_buffer = ""
+            else:
+                self._line_buffer += ch
 
     def flush(self):
-        pass
+        if self._line_buffer:
+            self._write_line(self._line_buffer)
+            self._line_buffer = ""
+        self.terminal.flush()
+        for log in self.logs:
+            log.flush()
+
+
+def _unwrap_logger_stream(stream):
+    while isinstance(stream, Logger):
+        stream = stream.terminal
+    return stream
 
 
 def test(model, history_list, test_list, num_rels, num_nodes, class_g, use_cuda, all_ans_list, all_ans_r_list, path, model_name, mode, pop=True):
@@ -57,18 +82,19 @@ def test(model, history_list, test_list, num_rels, num_nodes, class_g, use_cuda,
     :param mode
     :return mrr_raw, mrr_filter, mrr_raw_r, mrr_filter_r
     """
+    # 评估输出分为实体预测与关系预测两套指标，分别累计 raw/filter 排名
     ranks_raw, ranks_filter, mrr_raw_list, mrr_filter_list = [], [], [], []
     ranks_raw_r, ranks_filter_r, mrr_raw_list_r, mrr_filter_list_r = [], [], [], []
     ranks_unaware, mrr_unaware_list = [], []
 
     idx = 0
     if mode == "test":
-        # test mode: load parameter form file
+        # 测试模式：从文件加载模型参数
         if use_cuda:
             checkpoint = torch.load(model_name, map_location=torch.device(args.gpu))
         else:
             checkpoint = torch.load(model_name, map_location=torch.device('cpu'))
-        print("Load Model name: {}. Using best epoch : {}".format(model_name, checkpoint['epoch']))  # use best stat checkpoint
+        print("Load Model name: {}. Using best epoch : {}".format(model_name, checkpoint['epoch']))  # 使用最优轮次检查点
         print("\n"+"-"*10+"start testing"+"-"*10+"\n")
         if pop:
             checkpoint['state_dict'].pop('rgcn.layers.0.rel_emb')
@@ -77,13 +103,14 @@ def test(model, history_list, test_list, num_rels, num_nodes, class_g, use_cuda,
         model.load_state_dict(checkpoint['state_dict'])
 
     model.eval()
-    # do not have inverse relation in test input
+    # 测试输入中不额外拼接反向关系
     if args.test_history_len == -1:
         input_list = history_list
     else:
         input_list = [snap for snap in history_list[-args.test_history_len:]]
 
-    for time_idx, test_snap in enumerate(tqdm(test_list)):
+    for time_idx, test_snap in enumerate(tqdm(test_list, desc="Evaluating", leave=False, mininterval=1.0)):
+        # 使用滑动历史窗口构建历史子图序列，和论文中的 history(t_k) 对应
         history_glist = [build_sub_graph(num_nodes, num_rels, input_list[i], i, use_cuda, args.gpu, build_line_graph=getattr(args, 'enable_line_graph', False)) for i in range(len(input_list))]
         #history_glist = [utils.build_history_graph(num_nodes, num_rels, input_list, use_cuda, args.gpu)]
         test_triples_input = torch.LongTensor(test_snap).cuda() if use_cuda else torch.LongTensor(test_snap)
@@ -96,21 +123,21 @@ def test(model, history_list, test_list, num_rels, num_nodes, class_g, use_cuda,
         #mrr_unaware_snap, rank_unaware = utils.calc_filtered_mrr(num_nodes, final_score[:len(final_score)//2], history_list, test_list, test_snap)
         mrr_unaware_snap, rank_unaware = utils.calc_filtered_mrr(num_nodes, final_score, history_list, test_list, test_snap)
 
-        # used to global statistic
+        # 用于全局统计
         ranks_raw.append(rank_raw)
         ranks_filter.append(rank_filter)
         ranks_unaware.append(rank_unaware)
-        # used to show slide results
+        # 用于逐时间步展示
         mrr_raw_list.append(mrr_snap)
         mrr_filter_list.append(mrr_filter_snap)
         mrr_unaware_list.append(mrr_unaware_snap)
-        # relation rank
+        # 关系预测排名
         ranks_raw_r.append(rank_raw_r)
         ranks_filter_r.append(rank_filter_r)
         mrr_raw_list_r.append(mrr_snap_r)
         mrr_filter_list_r.append(mrr_filter_snap_r)
 
-        # reconstruct history graph list
+        # 多步推理时用预测快照回填历史；单步评估时回填真实快照
         if args.multi_step:
             if not args.relation_evaluation:    
                 predicted_snap = utils.construct_snap(test_triples, num_nodes, num_rels, final_score, args.topk)
@@ -141,7 +168,7 @@ def test(model, history_list, test_list, num_rels, num_nodes, class_g, use_cuda,
     mrr_raw_r = utils.stat_ranks(ranks_raw_r, "raw_rel", verbose=True)
     mrr_filter_r = utils.stat_ranks(ranks_filter_r, "filter_rel", verbose=True)
     if mode == 'test':
-        # Only output relation metrics
+        # 仅输出关系预测指标
         utils.write_output([ranks_raw_r, ranks_filter_r], 
                            [mrr_raw_r, mrr_filter_r], 
                            file_name=path+'results.csv')
@@ -150,7 +177,7 @@ def test(model, history_list, test_list, num_rels, num_nodes, class_g, use_cuda,
 
 
 def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=None):
-    # load configuration for grid search the best configuration
+    # 加载网格搜索配置
     if n_hidden:
         args.n_hidden = n_hidden
     if n_layers:
@@ -160,7 +187,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
     if n_bases:
         args.n_bases = n_bases
 
-    # load graph data
+    # 1) 数据加载与按时间切分快照（论文“历史结构构建”入口）
     print("loading graph data")
     data = utils.load_data(args.dataset)
     train_list = utils.split_by_time(data.train)
@@ -185,7 +212,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
     fold_num = sum([os.path.isdir(path+listx) for listx in os.listdir(path)])
     path = path + str(fold_num+1) + '/'
     # 新建文件夹 年/月/日/小时/{文件夹个数}/
-    # 一个best model，一个last model，一个args，一个log，
+    # 存放最优模型、最后一轮模型、参数与日志
     if not os.path.exists(path):
         os.makedirs(path)
     #path = '../checkpoints/2022/10/15/8/2/'
@@ -195,17 +222,18 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
     else:
         model_state_file = path + 'best.pt'
 
+    use_cuda = args.gpu >= 0 and torch.cuda.is_available()
+    # 始终记录完整实验过程日志
+    log_files = [path + 'experiment.log']
+    # 兼容旧行为：显式开启 use_logger 时继续产出 train/test.log
+    if args.use_logger:
+        log_files.append(path + ('test.log' if args.test else 'train.log'))
+    sys.stdout = Logger(log_files, _unwrap_logger_stream(sys.stdout))
+    sys.stderr = Logger(log_files, _unwrap_logger_stream(sys.stderr))
     print("Sanity Check: stat name : {}".format(model_name))
     print("Sanity Check: Is cuda available ? {}".format(torch.cuda.is_available()))
-
-    use_cuda = args.gpu >= 0 and torch.cuda.is_available()
-    if args.use_logger:
-        if args.test:
-            sys.stdout = Logger(path+'test.log', sys.stdout)
-        else:
-            sys.stdout = Logger(path+'train.log', sys.stdout)
     print(args)
-    # create stat
+    # 2) 创建模型：主干为 RecurrentRGCN，内部包含社区增强、时序编码、关系解码与正则项
     model = RecurrentRGCN(args.decoder,
                           args.encoder,
                         num_nodes,
@@ -239,6 +267,9 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                         lie_ent_weight=args.lie_ent_weight,
                         lie_rel_weight=args.lie_rel_weight,
                         lie_pair_weight=args.lie_pair_weight,
+                        use_relation_dynamics=args.use_relation_dynamics,
+                        use_copy_generation=args.use_copy_generation,
+                        copy_gen_alpha=args.copy_gen_alpha,
                         use_temporal_trend=args.use_temporal_trend,
                         temporal_gating=args.temporal_gating,
                         time_embedding_alpha=args.time_embedding_alpha,
@@ -253,9 +284,10 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
         torch.cuda.set_device(args.gpu)
         model.cuda()
 
-    # optimizer
+    # 3) 优化器：默认 AdamW；两阶段训练时会被分组学习率覆盖
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-5)
 
+    # 4) 构建社区/类别图，供 TAGConv 对实体初始嵌入做结构增强
     class2node, node2class = utils.analyse_class(args.dataset)
     #class_g = utils.class_graph(class2node)
     class_g = utils.new_class_graph(node2class, train_list)
@@ -280,7 +312,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
     else:
         print("----------------------------------------start training----------------------------------------\n")
         
-        # 准备交替训练数据（如果启用）
+        # 可选：交替正向/反向训练，用于缓解过拟合并提高鲁棒性
         if getattr(args, 'alternating_training', False):
             print(f"🔄 启用交替训练模式，反向训练比例: {getattr(args, 'inverse_training_ratio', 0.5)}")
             # 为每个时间步创建反向三元组
@@ -292,7 +324,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                 else:
                     inverse_train_list.append(np.array([]).reshape(0, 3))
         
-        # ERD-Net两阶段训练策略
+        # 可选：ERD-Net 两阶段训练（预训练基础嵌入 -> 冻结后强化动态模块）
         if getattr(args, 'two_stage_training', False):
             print("🔄 启动ERD-Net两阶段训练策略")
             
@@ -305,7 +337,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                 idx = [_ for _ in range(len(train_list))]
                 random.shuffle(idx)
 
-                for train_sample_num in tqdm(idx[:len(idx)//2]):  # 只使用一半数据进行预训练
+                for train_sample_num in tqdm(idx[:len(idx)//2], leave=False, mininterval=1.0):  # 只使用一半数据进行预训练
                     if train_sample_num == 0: continue
                     output = train_list[train_sample_num:train_sample_num+1]
                     if args.train_history_len == -1:
@@ -317,11 +349,11 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                             input_list = train_list[train_sample_num - args.train_history_len:
                                                 train_sample_num]
                     
-                    # 构建历史图
+                    # 构建历史图序列（含可选 line-graph / PM-PD 边级增强）
                     history_glist = [build_sub_graph(num_nodes, num_rels, input_list[i], i, use_cuda, args.gpu, build_line_graph=getattr(args, 'enable_line_graph', False)) for i in range(len(input_list))]
                     output = [torch.from_numpy(_).long().cuda() for _ in output] if use_cuda else [torch.from_numpy(_).long() for _ in output]
                     
-                    # 预训练损失（重点学习基础嵌入）
+                    # 预训练阶段偏重实体表示稳定化，关系损失占比较小
                     loss_e, loss_r = model.get_loss(history_glist, output[0], class_g, use_cuda)
                     loss = 0.7 * loss_e + 0.3 * loss_r  # 预训练阶段偏重实体学习
                     losses.append(loss.item())
@@ -342,7 +374,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                 model.emb_rel.requires_grad = False
                 print("✅ 关系嵌入已冻结")
                 
-            # 为动态组件使用不同学习率
+            # 动态模块使用独立学习率，避免与基础编码器共享同一更新步长
             if getattr(args, 'use_relation_dynamics', False) and hasattr(model, 'global_rel_dynamics'):
                 rel_dynamics_params = list(model.global_rel_dynamics.parameters())
                 copy_gen_params = list(model.copy_gen_decoder.parameters()) if getattr(args, 'use_copy_generation', False) and hasattr(model, 'copy_gen_decoder') else []
@@ -368,7 +400,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
             idx = [_ for _ in range(len(train_list))]
             random.shuffle(idx)
 
-            for train_sample_num in tqdm(idx, desc=f"Epoch {epoch+1}/{args.n_epochs}", ncols=100, leave=False):
+            for train_sample_num in tqdm(idx, desc=f"Epoch {epoch+1}/{args.n_epochs}", ncols=100, leave=False, mininterval=2.0):
                 if train_sample_num == 0: continue
                 
                 # 决定使用正向还是反向训练
@@ -403,7 +435,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                     update_class_embedding = False
                 else:
                     class_g = None
-                # generate history graph with line graph support
+                # 训练主路径：按历史窗口构建快照子图列表，再送入模型
                 history_glist = [build_sub_graph(num_nodes, num_rels, input_list[i], i, use_cuda, args.gpu, build_line_graph=getattr(args, 'enable_line_graph', False)) for i in range(len(input_list))]
                 
                 output = [torch.from_numpy(_).long().cuda() for _ in output] if use_cuda else [torch.from_numpy(_).long() for _ in output]
@@ -416,13 +448,14 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                 else:
                     loss_weight = 1.0
                 
+                # 总损失 = 交替训练权重 * (实体损失 + 关系损失) + 频域正则
                 loss = loss_weight * (args.task_weight*loss_e + (1-args.task_weight)*loss_r) + args.freq_reg*loss_freq
                 losses.append(loss.item())
                 losses_e.append(loss_e.item())
                 losses_r.append(loss_r.item())
 
                 loss.backward(retain_graph=True)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_norm)  # clip gradients
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_norm)  # 梯度裁剪
                 optimizer.step()
                 optimizer.zero_grad()
 
@@ -445,7 +478,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                 print("Epoch {:04d} | Ave Loss: {:.4f} | entity-relation:{:.4f}-{:.4f} Best MRR {:.4f}{} | Model {} "
                       .format(epoch, np.mean(losses), np.mean(losses_e), np.mean(losses_r), best_mrr, erd_info, model_name))
 
-            # validation
+            # 按周期验证并保存 best.pt（按实体或关系指标二选一）
             if epoch and epoch % args.evaluate_every == 0:
                 mrr_raw, mrr_filter, mrr_raw_r, mrr_filter_r = test(model, 
                                                                     train_list[:], 
@@ -460,7 +493,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                                                                     model_state_file,  
                                                                     mode="train")
                 
-                if not args.relation_evaluation:  # entity prediction evalution
+                if not args.relation_evaluation:  # 实体预测评估
                     if mrr_raw < best_mrr:
                         if epoch >= args.n_epochs:
                             break
@@ -474,6 +507,11 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                     else:
                         best_mrr = mrr_raw_r
                         torch.save({'state_dict': model.state_dict(), 'epoch': epoch}, model_state_file)
+
+        if not os.path.exists(model_state_file):
+            print(f"Warning: Checkpoint not found at {model_state_file}. Saving current state.")
+            torch.save({'state_dict': model.state_dict(), 'epoch': epoch if 'epoch' in locals() else 0}, model_state_file)
+            
         mrr_raw, mrr_filter, mrr_raw_r, mrr_filter_r = test(model, 
                                                             train_list+valid_list,
                                                             test_list, 
@@ -486,7 +524,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                                                             path,
                                                             model_state_file, 
                                                             mode="test", pop=False)
-        # print('No ground truth testing...')
+        # print('无真实标签的滚动测试...')
         args.multi_step = True
         args.topk = 0
         # test(model, train_list+valid_list, test_list, num_rels, num_nodes, class_g, use_cuda, all_ans_list_test, all_ans_list_r_test, path, model_state_file, mode="test", pop=False)
@@ -542,7 +580,7 @@ if __name__ == '__main__':
                 avg_count = torch.mean((ranks <= hit).float())
                 print("Hits (raw) @ {}: {:.6f}".format(hit, avg_count.item()))
                 o_f.write("Hits (raw) @ {}: {:.6f}\n".format(hit, avg_count.item()))
-    # single run
+    # 单次运行
     else:
         run_experiment(args)
     sys.exit()

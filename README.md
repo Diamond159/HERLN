@@ -9,7 +9,7 @@
 - 模型训练（单步与多配置）
 - 模型推理与评估（实体预测、关系预测、多步滚动预测）
 - 消融实验    命令行 run.sh
-- 参数敏感性实验     --time-embedding-alpha
+- 参数敏感性实验     --time-embedding-alpha   config.py  159
 - 论文相关表格与图示的数据整理/绘图脚本  ./results
 
 当前实现的核心框架为 DRPM-NSCV 时态知识图谱推理模型，主要分成全局关系动态建模、复制-生成机制以及两阶段训练。
@@ -53,6 +53,6 @@
 ## Train & Test
 ```bash
 cd src
-python main.py -d WIKI --self-loop --layer-norm --weight 0.5 --theta 1 --relation-prediction --relation-evaluation --task-weight 0.0 --gpu 0 --freq-reg 5e-4 --alpha 10 --n-epochs 50 --temporal-gating --time-embedding-alpha 0.05
+python main.py -d WIKI --self-loop --layer-norm --weight 0.5 --theta 1 --relation-prediction --relation-evaluation --task-weight 0.0 --gpu 0 --freq-reg 5e-4 --alpha 10 --n-epochs 50 --temporal-gating --time-embedding-alpha 0.4
 ```
 结果保存在目录 `checkpoints`.

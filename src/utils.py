@@ -16,7 +16,7 @@ from scipy.sparse import coo_matrix
 
 #######################################################################
 #
-# Utility function for building training and testing graphs
+# 训练与测试图构建相关工具函数
 #
 #######################################################################
 
@@ -44,8 +44,8 @@ def sort_and_rank_filter(batch_a, batch_r, score, target, all_ans):
         ground = score[i][ans]
         score[i][b_multi] = 0
         score[i][ans] = ground
-    _, indices = torch.sort(score, dim=1, descending=True)  # indices : [B, number entity]
-    indices = torch.nonzero(indices == target.view(-1, 1))  # indices : [B, 2] 第一列递增， 第二列表示对应的答案实体id在每一行的位置
+    _, indices = torch.sort(score, dim=1, descending=True)  # indices : [B, 实体总数]
+    indices = torch.nonzero(indices == target.view(-1, 1))  # indices : [B, 2] 第一列递增，第二列为答案实体在该行中的位置
     indices = indices[:, 1].view(-1)
     return indices
 
@@ -67,10 +67,10 @@ def filter_t(triplets_to_filter, target_h, target_r, target_t, num_entities):
     target_h, target_r, target_t = int(target_h), int(target_r), int(target_t)
     filtered_t = []
 
-    # Do not filter out the test triplet, since we want to predict on it
+    # 不过滤当前测试三元组本身，因为它就是预测目标
     if (target_h, target_r, target_t) in triplets_to_filter:
         triplets_to_filter.remove((target_h, target_r, target_t))
-    # Do not consider an object if it is part of a triplet to filter
+    # 若实体属于待过滤集合，则不参与当前打分
     for t in range(num_entities):
         if (target_h, target_r, t) not in triplets_to_filter:
             filtered_t.append(t)
@@ -113,7 +113,7 @@ def calc_filtered_mrr(num_entity, score, train_triplets, valid_triplets, test_tr
 
         ranks = get_filtered_rank(num_entity, score, h, r, t, test_size, triplets_to_filter)
 
-        ranks += 1 # change to 1-indexed
+        ranks += 1 # 排名转为从 1 开始
 
         mrr = torch.mean(1.0 / ranks.float())
 
@@ -137,10 +137,10 @@ def filter_score_r(test_triples, score, all_ans):
 
 def r2e(triplets, num_rels):
     src, rel, dst = triplets.transpose()
-    # get all relations
+    # 获取所有关系
     uniq_r = np.unique(rel)
     uniq_r = np.concatenate((uniq_r, uniq_r+num_rels))
-    # generate r2e
+    # 构建 r2e 映射
     r_to_e = defaultdict(set)   #包含了不同类型的边连接的起点
     for j, (src, rel, dst) in enumerate(triplets):
         r_to_e[rel].add(src)
@@ -157,7 +157,7 @@ def r2e(triplets, num_rels):
 
 #######################################################################
 #
-# Line Graph and Probability Matrix (PM_PD) Functions
+# 线图与概率矩阵（PM_PD）相关函数
 #
 #######################################################################
 
@@ -177,8 +177,8 @@ def change_edges(edges):
     
     i = 0
     for line in edges:
-        head = line[1]  # 原始为tail位置
-        tail = line[0]  # 原始为head位置
+        head = line[1]  # 原始为尾实体位置
+        tail = line[0]  # 原始为头实体位置
         rel = line[2]
         
         # 建立节点ID映射字典
@@ -279,11 +279,11 @@ def build_line_graph_and_pm(graph, all_triples, num_nodes):
     # 1. 计算概率矩阵 PM_PD
     pm_pd = cal_pmpd(all_triples, num_nodes)
     
-    # 2. 构建线图 (使用DGL内置方法)
+    # 2. 构建线图（使用 DGL 内置方法）
     # 线图的节点对应原图的边
     # 如果原图中两条边共享一个节点,则在线图中这两个节点(对应原图的边)相连
     lg = graph.line_graph(backtracking=False)
-    # backtracking=False: 不允许回溯,即 (u->v, v->u) 不会在线图中相连
+    # backtracking=False：不允许回溯，即 (u->v, v->u) 不会在线图中相连
     
     return lg, pm_pd
 
@@ -299,7 +299,7 @@ def prepare_triples_with_inverse(triples, num_rels):
     返回:
         all_triples: 包含原始和反向三元组的numpy数组
     """
-    # 创建反向三元组 (tail, relation+num_rels, head)
+    # 创建反向三元组（尾实体, 关系+num_rels, 头实体）
     inverse_triples = triples[:, [2, 1, 0]]  # 反转头尾实体
     inverse_triples[:, 1] = inverse_triples[:, 1] + num_rels  # 反向关系ID偏移
     
@@ -372,7 +372,16 @@ def build_sub_graph(num_nodes, num_rels, triples, idx, use_cuda, gpu, build_line
 
 
 def merge_graphs(num_nodes, graphs, use_cuda=False, gpu=0):
+    """
+    合并历史窗口中的多个快照子图。
+
+    关键点：
+        - 保留每条边的关系类型 type。
+        - 将原始时间索引重映射为 "越近时间值越小" 的相对时间：max_time - time + 1，
+            供时序编码层做衰减建模。
+    """
     #处理graphs长度为0或者为1的情况
+
     if len(graphs) == 0:
         return dgl.DGLGraph()
     elif len(graphs) == 1:
@@ -401,8 +410,10 @@ def merge_graphs(num_nodes, graphs, use_cuda=False, gpu=0):
     #print(new_graph.nodes())
     #print(new_graph.edges())
     new_graph.edata['type'] = rel
+    # 时间重映射：最新快照对应最小 delta，和 Hawkes 风格时间衰减一致
     new_graph.edata['time'] = max_time - time + 1
 
+    
     # src = src.numpy()
     # dst = dst.numpy()
     # rel = rel.numpy()
@@ -681,7 +692,7 @@ def slide_list(snapshots, k=1):
     k = k  # k=1 需要取长度k的历史，在加1长度的label
     if k > len(snapshots):
         print("ERROR: history length exceed the length of snapshot: {}>{}".format(k, len(snapshots)))
-    for _ in tqdm(range(len(snapshots)-k+1)):
+    for _ in tqdm(range(len(snapshots)-k+1), leave=False, mininterval=1.0):
         yield snapshots[_: _+k]
 
 

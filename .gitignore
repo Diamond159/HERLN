@@ -45,3 +45,7 @@ logs/
 
 # Misc
 *.tmp
+
+checkpoints/
+
+checkpoints_服务器/

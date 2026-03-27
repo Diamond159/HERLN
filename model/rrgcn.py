@@ -6,7 +6,7 @@ import torch.fft as fft
 try:
     from dgl.nn.pytorch import TAGConv
 except ImportError:
-    # Fallback for older DGL versions that don't have TAGConv
+    # 兼容旧版 DGL：若无 TAGConv，则回退到 GraphConv
     from dgl.nn.pytorch import GraphConv as TAGConv
 
 # from rgcn.layers import RGCNBlockLayer as RGCNLayer
@@ -43,9 +43,9 @@ class BaseRGCN(nn.Module):
         print("use layer :{}".format(encoder_name))
         self.rel_emb = rel_emb
         self.opn = opn
-        # create rgcn layers
+        # 构建 RGCN 各层
         self.build_model()
-        # create initial features
+        # 构建初始特征
         self.features = self.create_features()
 
     def build_model(self):
@@ -64,7 +64,7 @@ class BaseRGCN(nn.Module):
         if h2o is not None:
             self.layers.append(h2o)
 
-    # initialize feature for each node
+    # 为每个节点初始化特征
     def create_features(self):
         return None
 
@@ -153,6 +153,7 @@ class RecurrentRGCN(nn.Module):
                  gpu = 0, alpha=10.0,
                  use_rel_context_prior=True, rel_prior_weight=0.3,
                  use_lie_reg=True, lie_p=3.0, lie_ent_weight=0.005, lie_rel_weight=0.01, lie_pair_weight=0.01,
+                 use_relation_dynamics=False, use_copy_generation=False, copy_gen_alpha=0.5,
                  use_temporal_trend=False, temporal_gating=False, time_embedding_alpha=0.5,
                  angle_degree=10.0, temporal_temperature=0.07, use_angle_constraint=False,
                  use_temporal_contrastive=False, angle_constraint_weight=0.1, temporal_contrastive_weight=0.1):
@@ -181,8 +182,11 @@ class RecurrentRGCN(nn.Module):
         self.alpha = alpha
         self.use_rel_context_prior = use_rel_context_prior
         self.rel_prior_weight = rel_prior_weight
+        self.use_relation_dynamics = use_relation_dynamics
+        self.use_copy_generation = use_copy_generation
+        self.copy_gen_alpha = copy_gen_alpha
         
-        # Periodic Trend Temporal Encoding configuration
+        # 周期趋势时序编码配置
         self.use_temporal_trend = use_temporal_trend
         self.temporal_gating = temporal_gating
         self.use_angle_constraint = use_angle_constraint
@@ -190,7 +194,7 @@ class RecurrentRGCN(nn.Module):
         self.angle_constraint_weight = angle_constraint_weight
         self.temporal_contrastive_weight = temporal_contrastive_weight
         
-        # Initialize temporal trend encoder if enabled
+        # 若启用则初始化时序趋势编码器
         if self.use_temporal_trend:
             self.temporal_trend_encoder = TemporalTrendEncoder(
                 num_entities=num_ents,
@@ -216,9 +220,11 @@ class RecurrentRGCN(nn.Module):
                 pair_weight=lie_pair_weight
             )
 
+        # 关系嵌入采用 2|R| 维度，包含正向关系与反向关系
         self.emb_rel = torch.nn.Parameter(torch.Tensor(self.num_rels * 2, self.h_dim), requires_grad=True).float()      #对所有的关系做嵌入
         torch.nn.init.xavier_normal_(self.emb_rel)
 
+        # 实体基础嵌入，在 forward 中可被社区图增强后的表示替换
         self.emb_ent = torch.nn.Parameter(torch.Tensor(num_ents, h_dim), requires_grad=True).float()      #对实体做嵌入
         torch.nn.init.normal_(self.emb_ent)
 
@@ -257,7 +263,7 @@ class RecurrentRGCN(nn.Module):
         self.reset_gate = nn.Linear(h_dim, 1)
         self.reset_gate1 = nn.Linear(self.num_ents, 1)
 
-        # decoder
+        # 解码器
         if decoder_name == "convtranse":
             self.decoder_ob = ConvTransE(num_ents, h_dim, input_dropout, hidden_dropout, feat_dropout)
             self.rdecoder = ConvTransR(num_rels, h_dim, input_dropout, hidden_dropout, feat_dropout)
@@ -270,8 +276,8 @@ class RecurrentRGCN(nn.Module):
         else:
             raise NotImplementedError 
 
-        # Contextual relation prior: uses concatenated (x_s, x_o) to predict relation logits
-        # Lightweight MLP; improves relation classification with graph context
+        # 关系上下文先验：使用 (主体, 客体) 拼接特征生成关系先验偏置
+        # 该项以加性偏置方式作用于关系 logits，用于提升关系分类可辨性
         if self.use_rel_context_prior:
             self.rel_prior = nn.Sequential(
                 nn.Linear(2 * h_dim, h_dim),
@@ -285,6 +291,10 @@ class RecurrentRGCN(nn.Module):
             self.device = f'cuda:{gpu}'
         else:
             self.device = 'cpu'
+
+        # 默认置空，避免条件分支未触发时属性不存在
+        self.global_rel_dynamics = None
+        self.copy_gen_decoder = None
         
         # ERD-Net创新模块初始化
         if self.use_relation_dynamics:
@@ -303,7 +313,7 @@ class RecurrentRGCN(nn.Module):
             try:
                 from model.copy_generation_decoder import CopyGenerationRelationDecoder
                 self.copy_gen_decoder = CopyGenerationRelationDecoder(
-                    h_dim, num_rels, alpha=copy_gen_alpha, 
+                    h_dim, num_rels, alpha=self.copy_gen_alpha,
                     device=self.device, dropout=feat_dropout
                 )
                 print("✅ ERD-Net复制-生成机制初始化成功")
@@ -314,6 +324,7 @@ class RecurrentRGCN(nn.Module):
 
 
     def forward(self, g_list, class_g, use_cuda):
+        # 步骤1：社区图增强实体初始表示（对应论文中的社区/类别结构融合）
         if class_g is None:
             current_ent_emb = self.emb_ent
         else:
@@ -327,11 +338,11 @@ class RecurrentRGCN(nn.Module):
         history_embs = []
         graph_h_list = []
         
-        # 初始化关系嵌入
+        # 步骤2：初始化关系表示，后续可被关系动态模块更新
         current_rel_emb = F.normalize(self.emb_rel) if self.layer_norm else self.emb_rel
         rel_embs_history = []
         
-        # 合并所有历史图
+        # 步骤3：将历史窗口中的多快照合并为单图，并在边上保留重映射时间戳
         history_graph = merge_graphs(self.num_ents, g_list, use_cuda, self.gpu)
         if use_cuda:
             history_graph = history_graph.to(self.gpu)
@@ -357,15 +368,17 @@ class RecurrentRGCN(nn.Module):
                         history_graph.pm_pd = history_graph.pm_pd.to(self.gpu)
                     break
 
+        # 步骤4：时序编码（Hawkes/Union/CompGCN 由 encoder_name 控制）
         new_ent_emb = current_ent_emb
         new_ent_emb, _ = self.rgcn.forward(history_graph, new_ent_emb, self.emb_rel)
         new_ent_emb = F.normalize(new_ent_emb) if self.layer_norm else new_ent_emb
 
+        # 步骤5：全局重置门融合，抑制单轮历史传播带来的噪声漂移
         weight_vec = self.reset_gate(new_ent_emb).reshape(1, self.num_ents)
         weight = nn.functional.sigmoid(self.reset_gate1(weight_vec))
         new_ent_emb = new_ent_emb * weight + current_ent_emb * (1 - weight)
 
-        # ERD-Net全局关系动态更新（增加错误处理）
+        # 步骤6：可选 ERD-Net 关系动态更新
         if self.use_relation_dynamics and hasattr(self, 'global_rel_dynamics') and self.global_rel_dynamics is not None:
             try:
                 updated_rel_emb = self.global_rel_dynamics(g_list, current_rel_emb, new_ent_emb, time_idx=0)
@@ -420,8 +433,9 @@ class RecurrentRGCN(nn.Module):
         #     self.h_0 = current_rel_emb
         # return history_embs, self.h_0, gate_list, degree_list
 
-    # ---------------- FFT-based relation decomposition and frequency regularizer ----------------
+    # ---------------- 基于 FFT 的关系分解与频率正则 ----------------
     def _relation_fft_components(self):
+        # 关系嵌入频域分解：低频保留长期趋势，高频反映快速变化
         rel = self.emb_rel  # (num_rels*2, h_dim)
         freq_domain = fft.fft(rel, dim=1)
         freqs = fft.fftfreq(self.h_dim, d=1.0).to(rel.device)
@@ -433,6 +447,7 @@ class RecurrentRGCN(nn.Module):
         return low_freq, high_freq
 
     def relation_freq_reg(self):
+        # 频率正则：鼓励低高频分量可分，同时惩罚高频能量过大
         low_freq, high_freq = self._relation_fft_components()
         separation = -torch.norm(low_freq - high_freq, p=2)
         high_intensity = torch.norm(high_freq, p=2)
@@ -451,17 +466,18 @@ class RecurrentRGCN(nn.Module):
             embedding = evolve_embs[-1]
             embedding = F.normalize(embedding) if self.layer_norm else embedding
 
+            # 实体预测分支
             score = self.decoder_ob.forward(embedding, r_emb, all_triples, graph_embs[-1],mode="test")
             
-            # 关系预测处理
+            # 关系预测分支：基础解码 + 可选复制生成增强
             try:
                 if self.use_copy_generation and hasattr(self, 'copy_gen_decoder') and self.copy_gen_decoder is not None:
-                    # 使用ERD-Net复制-生成解码器进行增强
+                    # 使用 ERD-Net 复制-生成解码器增强关系预测
                     score_rel = self.rdecoder.forward(embedding, r_emb, all_triples, mode="test")
-                    # 修复参数：使用正确的参数顺序和名称
+                    # 采用正确参数顺序调用复制-生成分支
                     copy_scores = self.copy_gen_decoder.forward(embedding, r_emb, all_triples, mode="test", use_copy=True)
                     if copy_scores is not None and not torch.isnan(copy_scores).any():
-                        # 简单融合，确保维度匹配
+                        # 简单线性融合，并确保维度匹配
                         min_size = min(score_rel.size(0), copy_scores.size(0))
                         score_rel[:min_size] = score_rel[:min_size] + 0.3 * copy_scores[:min_size]
                 else:
@@ -470,7 +486,7 @@ class RecurrentRGCN(nn.Module):
                 print(f"Error in copy generation prediction: {e}")
                 score_rel = self.rdecoder.forward(embedding, r_emb, all_triples, mode="test")
 
-            # Contextual relation prior (additive bias to logits)
+            # 关系上下文先验以加性偏置方式叠加到关系 logits
             if self.use_rel_context_prior:
                 s_idx = all_triples[:, 0]
                 o_idx = all_triples[:, 2]
@@ -499,11 +515,13 @@ class RecurrentRGCN(nn.Module):
         all_triples = triples
         all_triples = all_triples.to(self.gpu)
 
+        # 前向得到当前时刻实体表示与关系表示
         evolve_embs, r_emb,graph_embs = self.forward(glist, class_g, use_cuda)
         pre_emb = evolve_embs[-1]
         pre_emb = F.normalize(pre_emb) if self.layer_norm else pre_emb
 
         if self.entity_prediction:
+            # 实体预测损失
             scores_ob = self.decoder_ob.forward(pre_emb, r_emb, all_triples, graph_embs[-1]).view(-1, self.num_ents)
             #print(scores_ob)
             loss_ent += self.loss_e(scores_ob, all_triples[:, 2])
@@ -511,18 +529,18 @@ class RecurrentRGCN(nn.Module):
         if self.relation_prediction:
             try:
                 if self.use_copy_generation and hasattr(self, 'copy_gen_decoder') and self.copy_gen_decoder is not None:
-                    # 使用ERD-Net复制-生成解码器
+                    # 使用 ERD-Net 复制-生成解码器
                     copy_loss = self.copy_gen_decoder.get_loss(pre_emb, r_emb, all_triples, use_copy=True)
                     if hasattr(copy_loss, 'item') and not torch.isnan(copy_loss) and not torch.isinf(copy_loss):
-                        loss_rel += 0.1 * copy_loss  # 使用小权重避免过强影响
-                        # 只在特定条件下打印损失信息，避免干扰进度条
+                        loss_rel += 0.1 * copy_loss  # 使用小权重避免影响过强
+                        # 只在小概率下打印，避免干扰进度条
                         if torch.rand(1).item() < 0.01:  # 1%的概率打印
                             from tqdm import tqdm
                             tqdm.write(f"Copy generation loss: {copy_loss.item():.6f}")
                     else:
-                        print("Invalid copy generation loss, skipping")
+                        print("复制生成损失无效，已跳过")
                 else:
-                    # 使用原始关系预测方式
+                    # 原始关系预测路径（ConvTransR + 可选上下文先验）
                     score_rel = self.rdecoder.forward(pre_emb, r_emb, all_triples, mode="train").view(-1, 2 * self.num_rels)
 
                     # Add contextual prior to relation logits
@@ -536,12 +554,12 @@ class RecurrentRGCN(nn.Module):
                         score_rel = score_rel + self.rel_prior_weight * prior_logits
                     loss_rel += self.loss_r(score_rel, all_triples[:, 1])
             except Exception as e:
-                print(f"Error in relation prediction: {e}")
-                # 回退到原始方法
+                print(f"关系预测出现异常: {e}")
+                # 异常时回退到原始关系预测路径
                 score_rel = self.rdecoder.forward(pre_emb, r_emb, all_triples, mode="train").view(-1, 2 * self.num_rels)
                 loss_rel += self.loss_r(score_rel, all_triples[:, 1])
 
-        # Lie 群正则化损失（简化版：使用批次实体 + 关系正交 + 实体对对比）
+        # Lie 正则项并入关系损失分支
         if self.use_lie_reg:
             # 传入完整的 pre_emb 用于实体对对比学习（通过 triplets 索引）
             loss_lie = self.lie_regularizer(pre_emb, r_emb, all_triples)
