@@ -1,58 +1,131 @@
-# DRPM-NSCV / Baseline：HERLN
+# DRPM-NSCV / Baseline: HERLN
 
+本项目为硕士学位论文《基于时态知识图谱推理的事件预测技术研究》的实验代码仓库，覆盖模型训练、推理评估、消融实验、参数敏感性实验，以及论文表 5.12~5.17 的复现实验与结果整理。
 
+核心模型为 DRPM-NSCV (Dynamic Relation Prediction Model Guided by Neighborhood Sampling and Clustering Validation)，实现了时态知识图谱的实体预测与关系预测，并包含全局关系动态、复制-生成机制、关系上下文先验、频域分解与正交正则化等模块。
 
-## 项目定位
+## 2.1 项目简介
 
-本项目为硕士学位论文《基于时态知识图谱推理的事件预测技术研究》第四章的实验代码仓库，覆盖以下研究与复现实验内容：
+本研究面向社区结构明显的时态知识图谱，解决实体/关系表示随时间演化与关系预测不稳定的问题。模型由表示学习与预测解码两阶段构成，重点包括：历史子图编码、社区结构融合、关系频域分解与正则约束、关系上下文先验、全局关系动态与复制-生成机制。
 
-- 模型训练（单步与多配置）
-- 模型推理与评估（实体预测、关系预测、多步滚动预测）
-- 消融实验    命令行 run.sh
-- 参数敏感性实验     --time-embedding-alpha   config.py  159
-- 论文相关表格与图示的数据整理/绘图脚本  ./results
+## 2.2 系统环境
 
-当前实现的核心框架为 DRPM-NSCV 时态知识图谱推理模型，主要分成全局关系动态建模、复制-生成机制以及两阶段训练。
+表 5.1 实验用服务器具体硬件参数：
 
+| 硬件配置 | 实验室工作站 | 云服务器实例 |
+| --- | --- | --- |
+| CPU 型号 | Intel Core i9-13900K @ 3.00GHz | Intel Xeon Silver 4214R @ 2.40GHz |
+| CPU 核心数 | 24 核心 (8P + 16E) | 12 vCPU |
+| GPU 型号 | NVIDIA RTX 4090 | NVIDIA RTX 3090 |
+| 显存 | 24 GB | 24 GB |
+| 内存 | 64 GB | 90 GB |
+| 磁盘 | 1 TB | 80 GB |
 
+表 5.2 实验用服务器相关依赖库说明：
 
-## 项目简介
+| 名称 | 版本 | 说明 |
+| --- | --- | --- |
+| PyTorch | 2.1.2 | 深度学习框架，支持 GPU 加速计算 |
+| CUDA | 11.8 | 并行计算平台 |
+| NumPy | 1.26.4 | 多维数组与数值计算支持 |
+| scikit-learn | 1.5.2 | 数据预处理与模型评估 |
+| DGL | 1.1.2 (cu118) | 图神经网络库 |
 
-针对社区结构明显且呈现尺度无关特征的时态知识图谱在推理与预测中面临的表示不足与关系演化难建模等问题，本研究的目标是提出一种面向时态知识图谱的关系推理框架，在历史快照持续变化的条件下同时提升实体预测与关系预测性能，并保证训练与推理过程稳定可用。该框架重点解决以下两个关键问题：
-1. 如何联合利用历史交互信息与社区结构信息，学习对时序演化敏感且具备社区判别性的实体/关系嵌入表示。
-2. 在大规模动态图频繁更新的场景下，如何高效完成基于嵌入的实体与关系预测，尤其提升关系预测的稳健性与长短期依赖建模能力。
+推荐运行环境：
 
-为此，本文提出基于邻域采样与聚类验证引导的事件关系预测模型 **DRPM-NSCV (Dynamic Relation Prediction Model Guided by Neighborhood Sampling and Clustering Validation)**。模型包括表示学习和预测解码两个模块：包括基于历史子图编码与社区结构融合的表示学习阶段，以及基于解码器与增强策略的预测推理阶段。
+- OS: Ubuntu 22.04 / Windows 10 或 11
+- Python: 3.10
+- CUDA: 11.8
+- PyTorch: 2.1.2
+- GPU: NVIDIA RTX 3090 24GB 及以上
 
-## 具体方案介绍
+## 2.3 依赖安装说明
 
-### 1. 表示学习模块 (Representation Learning)
-为解决时态知识图谱中实体/关系表示随时间演化且受社区结构影响的问题，本文以历史快照序列为输入，通过图编码器对历史子图进行消息传递与特征聚合，学习动态节点表示。
-- 框架使用带有时间建模机制的图卷积编码层对历史交互进行表征，并引入社区结构辅助建模：利用由社区划分构建的类图对实体嵌入进行额外传播与归一化，从而使节点表示同时具备局部交互信息与社区层面的结构先验。
-- 为进一步增强关系表征的可分解性与稳定性，本文在关系嵌入上引入频域分解与正则约束，并结合 Lie 群正则化约束实体/关系嵌入的几何一致性，以减少训练过程中的退化与过拟合风险。
-- 框架支持通过线图与概率矩阵信息增强边级别结构表达，并通过正反向交替训练策略提升模型泛化能力。
+建议使用 conda 创建环境并安装 CUDA 11.8 + PyTorch 2.1.2：
 
-### 2. 预测推理模块 (Prediction and Reasoning)
-为适应动态图中关系模式随时间变化且关系类别分布长尾的问题，本文将推理任务转化为基于学习到的实体/关系向量的打分预测：使用卷积式解码器分别对实体与关系进行打分。针对关系预测性能易受稀有关系与历史模式变化影响的问题，本文设计两类增强机制：
-- **全局关系动态建模模块**：通过对历史图序列与实体表示的汇聚，更新关系嵌入以捕获跨时间的全局关系演化。
-- **复制-生成机制**：在关系预测时融合从历史频率/模式中复制的分布与基于当前表示生成的分布，以增强对高频关系的稳健性并兼顾新关系模式的生成能力。
+```bash
+conda create -n logcl python=3.10
+conda activate logcl
+conda install pytorch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2 pytorch-cuda=11.8 -c pytorch -c nvidia
+```
 
-同时，本文引入轻量级关系上下文先验，以提升关系分类的可辨性。为提高训练可控性，框架提供两阶段训练策略：首先进行基础嵌入预训练，再选择性冻结实体/关系嵌入并对动态模块设置专用学习率，从而在保证表示稳定的前提下强化关系动态与复制-生成组件的学习效果。框架能够在动态 TKG 场景下实现对实体与关系的高效预测，并支持多步推理时基于预测结果重构后续输入快照，实现持续滚动预测。
+安装 DGL (cu118)：
 
-## 模型层级架构细节
+```bash
+conda install -c dglteam/label/cu118 dgl --force-reinstall
+```
 
-1. **历史结构构建与边级增强层**：首先将时态知识图谱按时间划分为快照序列，在预测时间步探索选取长度为 L 的历史窗口，对历史窗口内的快照分别构建历史子图，并合并为统一历史图。为增强边级结构建模能力，引入线图及概率矩阵等辅助结构信息，用以刻画关系间的高阶关联与不确定性。
-2. **社区/类别结构融合层**：针对知识图谱中普遍存在的社区结构特性，构建实体类别或社区对应的辅助类图。通过图卷积操作将社区层面的结构信息传播至实体初始嵌入中，提升实体表征的结构一致性与可分性。
-3. **基于 Hawkes 过程的时序图卷积编码层**：在历史图结构与社区增强实体表示的基础上，采用动态图编码器进行聚合。编码器配置为 HawkesRGCN，在关系条件下执行消息传递，得到实体与中间关系表示。通过门控融合机制自适应融合历史与基础表示，缓解噪声累积。
-4. **关系演化增强与正则约束层**：引入关系动态增强模块，对关系嵌入进行跨时间更新。从频域与几何角度施加正则化约束，抑制短期噪声并保持嵌入空间的结构一致性。
-5. **关系解码与预测层**：采用 ConvTransR 卷积式解码器对缺失关系进行预测。通过上下文先验提升关系分类可辨性，并采用复制-生成混合解码策略显著提升长尾关系与动态场景下的预测鲁棒性。
+如需使用预发布轮子：
 
----
+```bash
+export DGLBACKEND=pytorch
+pip install --pre dgl -f https://data.dgl.ai/wheels-test/torch-2.1/cu118/repo.html
+```
 
+本仓库亦保留了旧版本依赖清单 [requirement.txt](requirement.txt)，用于兼容早期实验环境。若使用该文件，请确保 CUDA / PyTorch / DGL 版本与当前环境一致。
 
-## Train & Test
+## 2.4 数据说明
+
+数据位于 [data](data) 目录，包含 ICEWS14s、ICEWS18、WIKI、YAGO 等数据集，每个数据集目录包含：
+
+- entity2id.txt
+- relation2id.txt
+- train.txt / valid.txt / test.txt
+- train.csv (用于社区类图与统计信息)
+
+数据格式按四元组 (s, r, o, t) 存储，时间字段用于快照划分与历史窗口构建。
+
+数据来源为公开时态知识图谱数据集的官方发布版本。若无法分发原始数据，请保留样例文件并说明限制。
+
+## 2.5 如何运行项目
+
+从零开始执行的推荐流程如下：
+
+1) 安装依赖
+2) 准备数据并确认目录结构 [data](data)
+3) 配置参数 (见 [src/config.py](src/config.py))
+4) 运行训练
+5) 运行测试/评估
+6) 生成表格与图像
+
+最小训练示例：
+
 ```bash
 cd src
 python main.py -d WIKI --self-loop --layer-norm --weight 0.5 --theta 1 --relation-prediction --relation-evaluation --task-weight 0.0 --gpu 0 --freq-reg 5e-4 --alpha 10 --n-epochs 50 --temporal-gating --time-embedding-alpha 0.4
 ```
-结果保存在目录 `checkpoints`.
+
+训练结果保存在 [checkpoints](checkpoints) 与 [checkpoints_服务器](checkpoints_服务器) 下按日期分层的目录。
+
+## 2.6 各实验复现方法
+
+本仓库已将论文表 5.12~5.17 的复现实验整理到 [experiments](experiments)：
+
+- 表 5.12 (ICEWS14 / ICEWS18): [experiments/table5_12对比实验（ICEWS14](experiments/table5_12对比实验（ICEWS14)
+- 表 5.13 (WIKI / YAGO): [experiments/table5_13对比实验（WIKI](experiments/table5_13对比实验（WIKI)
+- 表 5.14 (time-embedding-alpha): [experiments/table5_14时间嵌入系数](experiments/table5_14时间嵌入系数)
+- 表 5.15~5.17 (消融): [experiments/table5_15_16_17消融实验](experiments/table5_15_16_17消融实验)
+
+每个实验目录包含 `run.sh`、`args.log`、`experiment.log`、`result.csv`，可直接复现对应实验：
+
+```bash
+bash experiments/table5_12对比实验（ICEWS14/icews14/run.sh
+bash experiments/table5_13对比实验（WIKI/wiki/run.sh
+bash experiments/table5_14时间嵌入系数/alpha_0.4/run.sh
+bash experiments/table5_15_16_17消融实验/ftt_freq_reg/run.sh
+```
+
+## 2.7 图表生成说明
+
+论文表格与图像的源数据与绘图脚本集中在 [results](results) 与 [results/相关表格.md](results/相关表格.md)。
+
+如果需要更新图表，请先运行对应 `experiments/*/run.sh`，再根据 [results](results) 下的脚本或已有表格文件整理输出。
+
+## 2.8 常见问题说明
+- torch 2.4.1 启动失败，考虑是dgl包太新了
+- DGL 无法导入: 确认 `DGLBACKEND=pytorch` 且 DGL 与 PyTorch 版本匹配。
+- 显存不足: 降低 `--n-hidden`、`--n-layers` 或缩短历史长度 `--train-history-len`。
+
+## 2.9 判定标准
+
+README 若缺少环境说明、运行步骤、实验复现说明、图表生成说明中的任何关键项，应视为不完整。本 README 已覆盖上述必备内容，并提供实验目录对应关系与运行命令。

@@ -49,3 +49,5 @@ logs/
 checkpoints/
 
 checkpoints_服务器/
+
+experiments/
