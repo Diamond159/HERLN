@@ -1,0 +1,464 @@
+HERLN项目代码审查报告
+====================================
+
+审查日期：2026-04-02
+审查人员：代码审查专家
+审查目标：判断该项目是否真实、完整、可信地支撑论文实验结论
+
+====================================
+A. 项目概览
+====================================
+
+项目名称：DRPM-NSCV / Baseline: HERLN
+项目类型：时态知识图谱推理的硕士论文实验代码
+主要数据集：ICEWS14, ICEWS18, WIKI, YAGO
+核心模型：RecurrentRGCN（基于Hawkes过程的关系图卷积网络）
+创新模块：
+1. FFT频域分解与正则
+2. 关系上下文先验（Logit偏置）
+3. 全局关系动态建模（ERD-Net）
+4. 复制-生成机制（Copy-Generation）
+5. 周期趋势时序编码
+6. Lie群正则化
+
+执行链路：
+1. 数据加载：src/knowledge_graph.py → load_from_local()
+2. 时间切分：src/utils.py:639 split_by_time()
+3. 历史窗口构建：src/main.py:84, src/utils.py:319 build_sub_graph()
+4. 社区图构建：src/utils.py:852 new_class_graph()
+5. 模型训练：src/main.py:365 epoch循环
+6. 模型测试：src/main.py:54 test()函数
+7. 结果输出：checkpoints/*/results.csv
+
+代码规模：
+- 主要模块：10+个Python文件
+- 代码行数：约5000+行
+- 实验脚本：experiments/目录（已被gitignore）
+
+====================================
+B. 明显错误
+====================================
+
+【严重】B1. 训练/测试历史窗口数据泄漏
+位置：src/main.py:296, src/main.py:468
+问题描述：
+测试时使用 train_list+valid_list 作为历史输入，这是正确的做法，
+但在计算过滤评测时，all_ans 的构建方式存在潜在数据泄漏风险。
+
+代码片段：
+```python
+# src/main.py:296
+mrr_raw, mrr_filter, mrr_raw_r, mrr_filter_r = test(model, 
+                                                    train_list+valid_list,  # ✅ 正确
+                                                    test_list, 
+                                                    ...)
+
+# src/utils.py:686
+def load_all_answers_for_time_filter(total_data, num_rels, num_nodes, rel_p=False):
+    all_ans_list = []
+    all_snap = split_by_time(total_data)
+    for snap in all_snap:
+        all_ans_t = load_all_answers_for_filter(snap, num_rels, rel_p)
+        all_ans_list.append(all_ans_t)
+    return all_ans_list
+```
+
+影响程度：中等
+影响范围：评测指标的可信度
+建议修复：明确过滤规则，确保不泄漏未来信息
+
+====================================
+
+【中等】B2. 评测过滤逻辑不一致
+位置：src/utils.py:488-506, src/utils.py:608-626
+问题描述：
+filter_score() 和 filter_score_r() 两个函数的过滤逻辑实现不同，
+但都用于评测，可能导致实体预测和关系预测的评测标准不一致。
+
+代码片段：
+```python
+# src/utils.py:488-506 - 实体预测过滤
+def filter_score(test_triples, score, all_ans):
+    test_triples = test_triples.cpu()
+    for _, triple in enumerate(test_triples):
+        h, r, t = triple
+        ans = list(all_ans[h.item()][r.item()])
+        ans.remove(t.item())  # 移除目标实体
+        ans = torch.LongTensor(ans)
+        score[_][ans] = -10000000  # 将其他候选设为极小值
+    return score
+
+# src/utils.py:608-626 - 关系预测过滤
+def filter_score_r(test_triples, score, all_ans):
+    test_triples = test_triples.cpu()
+    for _, triple in enumerate(test_triples):
+        h, r, t = triple
+        ans = list(all_ans[h.item()][t.item()])  # 注意：这里是 (h, t) 键
+        ans.remove(r.item())
+        ans = torch.LongTensor(ans)
+        score[_][ans] = -10000000
+    return score
+```
+
+影响程度：中等
+影响范围：评测结果的可比性
+建议修复：统一过滤逻辑，或明确说明差异的合理性
+
+====================================
+
+【中等】B3. 异常处理过于宽泛，掩盖真实错误
+位置：model/rrgcn.py:347-362, model/rrgcn.py:434-444
+问题描述：
+在关系动态和复制生成模块中，异常被捕获后直接回退到原始实现，
+没有记录错误详情，可能掩盖真实的问题。
+
+代码片段：
+```python
+# model/rrgcn.py:347-362
+if self.use_relation_dynamics and hasattr(self, 'global_rel_dynamics') and self.global_rel_dynamics is not None:
+    try:
+        updated_rel_emb = self.global_rel_dynamics(g_list, current_rel_emb, new_ent_emb, time_idx=0)
+        if updated_rel_emb is not None and not torch.isnan(updated_rel_emb).any():
+            current_rel_emb = updated_rel_emb
+            ...
+    except Exception as e:
+        print(f"Error in relation dynamics: {e}")
+        rel_embs_history.append(current_rel_emb)  # 静默回退
+```
+
+影响程度：中等
+影响范围：创新模块的有效性验证
+建议修复：改进异常处理，记录详细的错误日志
+
+====================================
+
+【轻微】B4. 参数初始化不一致
+位置：model/rrgcn.py:215-224
+问题描述：
+实体嵌入和关系嵌入使用不同的初始化方法，可能影响训练稳定性。
+
+代码片段：
+```python
+# model/rrgcn.py:215-224
+self.emb_rel = torch.nn.Parameter(torch.Tensor(self.num_rels * 2, self.h_dim), 
+                                  requires_grad=True).float()
+torch.nn.init.xavier_normal_(self.emb_rel)  # Xavier正态初始化
+
+self.emb_ent = torch.nn.Parameter(torch.Tensor(num_ents, h_dim), 
+                                  requires_grad=True).float()
+torch.nn.init.normal_(self.emb_ent)  # 标准正态初始化（均值0，标准差1）
+```
+
+影响程度：轻微
+影响范围：模型训练的稳定性
+建议修复：统一初始化方法，或说明差异的合理性
+
+====================================
+C. 可疑逻辑问题
+====================================
+
+【高可疑】C1. 实验目录被gitignore，无法验证实验配置
+位置：experiments/ 目录
+问题描述：
+根据 README.md，experiments/ 目录包含论文表5.12~5.17的复现实验，
+但该目录被 .gitignore 忽略，所有实验脚本和结果都无法访问。
+
+证据：
+1. README.md 2.6节提到："本仓库已将论文表 5.12~5.17 的复现实验整理到 [experiments]"
+2. 执行 list_directory 发现所有实验目录都标记为 "(git-ignored)"
+3. .gitignore 可能包含 experiments/* 或类似规则
+
+影响程度：高
+影响范围：实验可复现性
+建议：将实验脚本和配置加入版本控制
+
+====================================
+
+【中等可疑】C2. 论文公式与实际实现差异
+位置：model/rrgcn.py:411-419, paper_mapping.md 5.3节
+问题描述：
+论文描述的关系预测损失为二元交叉熵（BCE），但实际实现使用FocalLoss。
+
+证据：
+```python
+# model/rrgcn.py:211-212
+self.loss_e = FocalLoss(gamma=2)
+self.loss_r = FocalLoss(gamma=2)
+```
+
+paper_mapping.md 5.3节说明：
+"论文公式可视为目标函数表达；工程实现采用 FocalLoss 以提升长尾类别稳定性。
+若需与论文'严格 BCE 版本'完全一致，应在实验说明中单独标注该实现差异或提供 BCE 对照实验。"
+
+影响程度：中等
+影响范围：论文结果的可信度
+建议：在论文中明确说明实现差异，或提供BCE对照实验
+
+====================================
+
+【中等可疑】C3. 消融实验开关未正确连接
+位置：src/config.py:157, model/rrgcn.py:169, paper_mapping.md 3.3节
+问题描述：
+paper_mapping.md 3.3节提到 w/o 关系正交正则化消融实验使用 --weight 0.0，
+但该参数在模型初始化时被设置，实际前向计算中未直接使用。
+
+证据：
+```python
+# src/config.py:157
+parser.add_argument("--weight", type=float, default=0.5,
+                    help="weight of current entity embedding in evolve")
+
+# model/rrgcn.py:169
+self.weight = weight  # 参数被保存
+
+# model/rrgcn.py:391-392 (注释区域)
+# current_ent_emb = current_ent_emb * self.weight + self.emb_ent * (1 - self.weight)
+# 上述代码被注释，实际前向中未使用 self.weight
+```
+
+paper_mapping.md 3.3节说明：
+"命令层面保留该消融配置，与论文设置保持一致；若需严格代码等价消融，
+建议后续将该参数接回有效计算图。"
+
+影响程度：中等
+影响范围：消融实验的有效性
+建议：修复代码连接，或在论文中说明实现细节
+
+====================================
+
+【中等可疑】C4. 随机种子设置不完整
+位置：src/main.py:605-608
+问题描述：
+虽然设置了随机种子，但某些操作（如DGL的图操作）可能仍然存在不确定性。
+
+证据：
+```python
+# src/main.py:605-608
+if args.seed is not None:
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
+```
+
+缺失项：
+- 未设置 torch.backends.cudnn.deterministic = True
+- 未设置 torch.backends.cudnn.benchmark = False
+- DGL 的某些操作可能引入随机性
+
+影响程度：中等
+影响范围：实验可复现性
+建议：完善随机种子设置
+
+====================================
+
+【轻微可疑】C5. 社区标签依赖外部文件
+位置：src/utils.py:825-838, data/*/train.csv
+问题描述：
+社区图构建依赖 train.csv 中的 modularity_class 字段，
+但该字段的来源和计算方式未在代码中说明。
+
+证据：
+```python
+# src/utils.py:825-838
+def analyse_class(dataset):
+    path = '../data/'+dataset
+    class2node = defaultdict(list)
+    node2class = []
+    node_with_no_edge = []
+    with open(path+'/train.csv') as f:
+        csv_file = csv.DictReader(f)
+        for row in csv_file:
+            # 训练集的 modularity_class 作为聚类标签
+            class2node[int(row['modularity_class'])].append(int(row['Label']))
+            node2class.append(int(row['modularity_class']))
+    return class2node, node2class
+```
+
+影响程度：轻微
+影响范围：社区图构建的可解释性
+建议：在文档中说明 modularity_class 的计算方法
+
+====================================
+D. 预设结果/直出图表嫌疑
+====================================
+
+【低嫌疑】D1. results/相关表格.md 包含预计算的实验结果
+位置：results/相关表格.md
+问题描述：
+该文件包含完整的实验结果表格（表5.12~5.17），但没有对应的生成脚本或原始数据。
+
+证据：
+- results/相关表格.md 包含所有实验的详细指标
+- experiments/ 目录被 gitignore，无法验证实验脚本
+- 没有找到从原始日志生成这些表格的脚本
+
+影响程度：低
+影响范围：实验结果的可信度
+建议：提供结果生成脚本和原始数据
+
+====================================
+
+【低嫌疑】D2. 检查点目录结构复杂，难以追溯
+位置：checkpoints/, checkpoints_服务器/
+问题描述：
+检查点按日期分层（年/月/日/小时/序号），但没有清晰的目录命名规范，
+难以对应到具体的实验配置。
+
+证据：
+```python
+# src/main.py:182-191
+time = datetime.today()
+path = '../checkpoints/{}/{}/{}/{}/'.format(time.year, time.month, time.day, time.hour)
+if not os.path.exists(path):
+    os.makedirs(path)
+fold_num = sum([os.path.isdir(path+listx) for listx in os.listdir(path)])
+path = path + str(fold_num+1) + '/'
+```
+
+影响程度：低
+影响范围：实验结果的可追溯性
+建议：改进目录命名规范，包含实验配置摘要
+
+====================================
+E. 可复现性评估
+====================================
+
+【数据加载】✅ 可复现
+- 数据格式清晰（四元组 s, r, o, t）
+- 加载逻辑明确（src/knowledge_graph.py）
+- 时间切分逻辑可验证（src/utils.py:639）
+
+【模型训练】⚠️ 部分可复现
+- 训练流程清晰（src/main.py）
+- 损失函数实现与论文有差异（FocalLoss vs BCE）
+- 随机种子设置不完整
+
+【模型测试】✅ 可复现
+- 测试流程清晰（src/main.py:54 test()）
+- 评测指标计算可验证（src/utils.py）
+- 历史窗口使用正确（train_list+valid_list）
+
+【实验配置】❌ 不可复现
+- experiments/ 目录被 gitignore
+- 无法验证论文表格的生成过程
+- 缺少实验配置的详细记录
+
+【结果输出】⚠️ 部分可复现
+- results.csv 输出格式清晰
+- 排名明细文件完整
+- 缺少结果生成脚本
+
+总体评估：中等可复现性
+主要问题：实验配置缺失，实现与论文存在差异
+
+====================================
+F. 总体结论
+====================================
+
+评级：B级（基本可信，但存在需要改进的问题）
+
+评价依据：
+1. ✅ 代码结构清晰，执行链路完整
+2. ✅ 数据加载、模型训练、测试流程基本正确
+3. ✅ 创新模块有明确实现
+4. ⚠️ 论文公式与实际实现存在差异（FocalLoss vs BCE）
+5. ⚠️ 消融实验开关连接不完整
+6. ❌ 实验目录被gitignore，无法验证实验配置
+7. ⚠️ 评测过滤逻辑不一致
+8. ⚠️ 随机种子设置不完整
+
+可信度评估：
+- 核心算法实现：可信
+- 实验结果真实性：基本可信（但缺少验证）
+- 论文结论支撑：基本可信（但需要补充说明）
+
+主要优点：
+1. 代码结构良好，模块化清晰
+2. 论文映射文档详细，便于理解
+3. 创新模块有明确实现
+4. 数据处理流程规范
+
+主要不足：
+1. 实验配置缺失，影响可复现性
+2. 实现与论文存在差异，需要说明
+3. 消融实验连接不完整
+4. 异常处理过于宽泛
+
+====================================
+G. 建议导师重点复核的5个文件
+====================================
+
+1. src/main.py
+   - 重要性：★★★★★
+   - 原因：主入口文件，包含完整的训练和测试流程
+   - 重点关注：
+     * 训练/测试历史窗口的使用（第296行，第468行）
+     * 验证和测试的调用逻辑
+     * 检查点保存和加载逻辑
+     * 实验日志记录
+
+2. src/utils.py
+   - 重要性：★★★★★
+   - 原因：包含评测指标计算，直接影响论文结果
+   - 重点关注：
+     * 过滤评测逻辑（第488-506行，第608-626行）
+     * 时间切分逻辑（第639行 split_by_time）
+     * 历史窗口构建（第319行 build_sub_graph）
+     * 社区图构建（第852行 new_class_graph）
+
+3. model/rrgcn.py
+   - 重要性：★★★★★
+   - 原因：核心模型实现，包含所有创新模块
+   - 重点关注：
+     * 损失函数选择（第211-212行 FocalLoss）
+     * FFT频域分解实现（第400-419行）
+     * 关系上下文先验实现（第252-257行）
+     * ERD-Net模块调用（第347-362行）
+     * 复制生成机制调用（第434-444行）
+
+4. src/config.py
+   - 重要性：★★★★☆
+   - 原因：参数配置，影响实验结果
+   - 重点关注：
+     * 消融实验参数（第157行 --weight）
+     * 频率正则参数（第29行 --freq-reg，第31行 --alpha）
+     * 关系上下文先验参数（第94-97行）
+     * ERD-Net模块开关（第136-141行）
+
+5. paper_mapping.md
+   - 重要性：★★★★☆
+   - 原因：论文与代码映射，解释实现差异
+   - 重点关注：
+     * 3.3节消融实验映射
+     * 5.3节损失函数差异说明
+     * 各创新点的代码定位
+     * 参数与论文符号的对应关系
+
+====================================
+补充建议
+====================================
+
+1. 立即改进项：
+   - 将实验脚本和配置加入版本控制
+   - 修复消融实验开关连接
+   - 完善随机种子设置
+   - 统一评测过滤逻辑
+
+2. 论文补充说明项：
+   - 明确说明FocalLoss与BCE的差异及选择理由
+   - 说明消融实验的实际实现细节
+   - 补充实验可复现性说明
+
+3. 长期改进项：
+   - 改进检查点目录命名规范
+   - 提供结果生成脚本
+   - 增强异常处理和日志记录
+   - 添加单元测试
+
+====================================
+审查结束
+====================================
+
+本报告基于代码静态分析，不包含运行时验证。
+建议在实际运行代码后进一步验证实验结果的可信度。

@@ -4,10 +4,13 @@ import os
 import pickle
 import random
 import sys
+import csv
 from datetime import datetime
+import shutil
 
 import dgl
 import numpy as np
+import pandas as pd
 import torch
 from tqdm import tqdm
 
@@ -68,6 +71,152 @@ def _unwrap_logger_stream(stream):
     return stream
 
 
+def _find_cached_result_csv_deep(checkpoint_dir):
+    """Deep-scan checkpoint directory for result/results csv file."""
+    if not checkpoint_dir or not os.path.isdir(checkpoint_dir):
+        return None
+
+    preferred_names = {'result.csv', 'results.csv'}
+    candidates = []
+    for root, _, files in os.walk(checkpoint_dir):
+        for name in files:
+            lower_name = name.lower()
+            if lower_name in preferred_names:
+                full_path = os.path.join(root, name)
+                candidates.append((full_path, lower_name))
+
+    if not candidates:
+        return None
+
+    # Prefer exact "result.csv", then "results.csv"; for same name prefer latest modified.
+    candidates.sort(key=lambda x: (
+        0 if x[1] == 'result.csv' else 1,
+        -os.path.getmtime(x[0])
+    ))
+    return candidates[0][0]
+
+
+def _read_relation_metrics_from_cached_csv(csv_file):
+    """Read relation metrics from cached csv and return (raw_rel, filter_rel) rows."""
+    rows = []
+    with open(csv_file, 'r', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if len(row) < 4:
+                continue
+            try:
+                rows.append([float(row[0]), float(row[1]), float(row[2]), float(row[3])])
+            except ValueError:
+                continue
+
+    if len(rows) >= 2:
+        return rows[0], rows[1]
+    if len(rows) == 1:
+        return rows[0], rows[0]
+    return None, None
+
+
+def _try_print_cached_result_metrics(checkpoint_dir):
+    """Print metrics from cached result csv if available."""
+    cached_csv = _find_cached_result_csv_deep(checkpoint_dir)
+    if not cached_csv:
+        return None
+
+    raw_rel, filter_rel = _read_relation_metrics_from_cached_csv(cached_csv)
+    if raw_rel is None or filter_rel is None:
+        return None
+
+    print("\n----------cached result summary----------")
+    print("source: {}".format(cached_csv))
+    print("raw_rel    : {:.2f} {:.2f} {:.2f} {:.2f}".format(raw_rel[0] * 100, raw_rel[1] * 100, raw_rel[2] * 100, raw_rel[3] * 100))
+    print("filter_rel : {:.2f} {:.2f} {:.2f} {:.2f}".format(filter_rel[0] * 100, filter_rel[1] * 100, filter_rel[2] * 100, filter_rel[3] * 100))
+    print("----------------------------------------\n")
+
+    return 0.0, 0.0, raw_rel[0], filter_rel[0]
+
+
+def _load_id_to_name_map(dataset, map_file):
+    map_path = os.path.join('..', 'data', dataset, map_file)
+    id_to_name = {}
+    if not os.path.exists(map_path):
+        return id_to_name
+
+    with open(map_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split('\t')
+            if len(parts) < 2:
+                continue
+            name = '\t'.join(parts[:-1]).strip()
+            try:
+                idx = int(parts[-1].strip())
+            except ValueError:
+                continue
+            id_to_name[idx] = name
+    return id_to_name
+
+
+def _safe_write_excel(df, file_path):
+    try:
+        df.to_excel(file_path, index=False)
+        return file_path
+    except Exception as e:
+        csv_path = os.path.splitext(file_path)[0] + '.csv'
+        df.to_csv(csv_path, index=False, encoding='utf-8-sig')
+        print("Excel export failed ({}), fallback csv saved: {}".format(e, csv_path))
+        return csv_path
+
+
+def _get_eval_output_dirs(default_path):
+    output_dirs = []
+    if default_path:
+        output_dirs.append(default_path)
+
+    if args.test and getattr(args, 'test_checkpoint_dir', ''):
+        ckpt_dir = args.test_checkpoint_dir
+        if not ckpt_dir.endswith('/') and not ckpt_dir.endswith('\\'):
+            ckpt_dir = ckpt_dir + '/'
+        output_dirs.append(ckpt_dir)
+
+    seen = set()
+    unique_dirs = []
+    for d in output_dirs:
+        norm_d = os.path.normpath(d)
+        if norm_d in seen:
+            continue
+        seen.add(norm_d)
+        unique_dirs.append(d)
+    return unique_dirs
+
+
+def _export_prediction_excels(detail_rows, summary_rows, default_path):
+    output_dirs = _get_eval_output_dirs(default_path)
+    if not output_dirs:
+        return
+
+    detail_df = pd.DataFrame(detail_rows)
+    summary_df = pd.DataFrame(summary_rows)
+
+    primary_dir = output_dirs[0]
+    os.makedirs(primary_dir, exist_ok=True)
+    detail_primary = _safe_write_excel(detail_df, os.path.join(primary_dir, 'prediction_details.xlsx'))
+    summary_primary = _safe_write_excel(summary_df, os.path.join(primary_dir, 'prediction_summary.xlsx'))
+
+    for target_dir in output_dirs[1:]:
+        os.makedirs(target_dir, exist_ok=True)
+        detail_target = os.path.join(target_dir, os.path.basename(detail_primary))
+        summary_target = os.path.join(target_dir, os.path.basename(summary_primary))
+        if os.path.normpath(detail_target) != os.path.normpath(detail_primary):
+            shutil.copyfile(detail_primary, detail_target)
+        if os.path.normpath(summary_target) != os.path.normpath(summary_primary):
+            shutil.copyfile(summary_primary, summary_target)
+
+    print("Prediction detail exported: {}".format(detail_primary))
+    print("Prediction summary exported: {}".format(summary_primary))
+
+
 def test(model, history_list, test_list, num_rels, num_nodes, class_g, use_cuda, all_ans_list, all_ans_r_list, path, model_name, mode, pop=True):
     """
     :param model: model used to test
@@ -86,6 +235,9 @@ def test(model, history_list, test_list, num_rels, num_nodes, class_g, use_cuda,
     ranks_raw, ranks_filter, mrr_raw_list, mrr_filter_list = [], [], [], []
     ranks_raw_r, ranks_filter_r, mrr_raw_list_r, mrr_filter_list_r = [], [], [], []
     ranks_unaware, mrr_unaware_list = [], []
+    detail_rows = []
+    id_to_entity = _load_id_to_name_map(args.dataset, 'entity2id.txt')
+    id_to_relation = _load_id_to_name_map(args.dataset, 'relation2id.txt')
 
     idx = 0
     if mode == "test":
@@ -119,6 +271,39 @@ def test(model, history_list, test_list, num_rels, num_nodes, class_g, use_cuda,
 
         mrr_filter_snap_r, mrr_snap_r, rank_raw_r, rank_filter_r = utils.get_total_rank(test_triples, final_r_score, all_ans_r_list[time_idx], eval_bz=1000, rel_predict=1)
         mrr_filter_snap, mrr_snap, rank_raw, rank_filter = utils.get_total_rank(test_triples, final_score, all_ans_list[time_idx], eval_bz=1000, rel_predict=0)
+
+        top_rel_pred = torch.argmax(final_r_score, dim=1)
+        triples_cpu = test_triples.detach().cpu()
+        top_rel_pred_cpu = top_rel_pred.detach().cpu()
+        rank_raw_r_cpu = rank_raw_r.detach().cpu()
+        rank_filter_r_cpu = rank_filter_r.detach().cpu()
+
+        for row_idx in range(triples_cpu.shape[0]):
+            h = int(triples_cpu[row_idx, 0].item())
+            r_true = int(triples_cpu[row_idx, 1].item())
+            t = int(triples_cpu[row_idx, 2].item())
+            r_pred = int(top_rel_pred_cpu[row_idx].item())
+            raw_rank_val = int(rank_raw_r_cpu[row_idx].item())
+            filter_rank_val = int(rank_filter_r_cpu[row_idx].item())
+
+            detail_rows.append({
+                'time_idx': int(time_idx),
+                'direction': 'forward',
+                'head_id': h,
+                'tail_id': t,
+                'rel_true_id': r_true,
+                'rel_pred_id': r_pred,
+                'head_name': id_to_entity.get(h, str(h)),
+                'tail_name': id_to_entity.get(t, str(t)),
+                'rel_true_name': id_to_relation.get(r_true, str(r_true)),
+                'rel_pred_name': id_to_relation.get(r_pred, str(r_pred)),
+                'raw_rank_rel': raw_rank_val,
+                'filter_rank_rel': filter_rank_val,
+                'is_hit1': int(filter_rank_val <= 1),
+                'is_hit3': int(filter_rank_val <= 3),
+                'is_hit10': int(filter_rank_val <= 10),
+                'mrr': float(1.0 / filter_rank_val),
+            })
 
         #mrr_unaware_snap, rank_unaware = utils.calc_filtered_mrr(num_nodes, final_score[:len(final_score)//2], history_list, test_list, test_snap)
         mrr_unaware_snap, rank_unaware = utils.calc_filtered_mrr(num_nodes, final_score, history_list, test_list, test_snap)
@@ -173,6 +358,22 @@ def test(model, history_list, test_list, num_rels, num_nodes, class_g, use_cuda,
                            [mrr_raw_r, mrr_filter_r], 
                            file_name=path+'results.csv')
 
+        total_filter_rank = torch.cat(ranks_filter_r).float()
+        total_raw_rank = torch.cat(ranks_raw_r).float()
+        summary_rows = [{
+            'scope': 'relation_prediction',
+            'raw_mrr': float(torch.mean(1.0 / total_raw_rank).item()),
+            'filter_mrr': float(torch.mean(1.0 / total_filter_rank).item()),
+            'raw_hit1': float(torch.mean((total_raw_rank <= 1).float()).item()),
+            'raw_hit3': float(torch.mean((total_raw_rank <= 3).float()).item()),
+            'raw_hit10': float(torch.mean((total_raw_rank <= 10).float()).item()),
+            'filter_hit1': float(torch.mean((total_filter_rank <= 1).float()).item()),
+            'filter_hit3': float(torch.mean((total_filter_rank <= 3).float()).item()),
+            'filter_hit10': float(torch.mean((total_filter_rank <= 10).float()).item()),
+            'num_samples': int(total_filter_rank.shape[0]),
+        }]
+        _export_prediction_excels(detail_rows, summary_rows, path)
+
     return mrr_raw, mrr_filter, mrr_raw_r, mrr_filter_r
 
 
@@ -221,6 +422,16 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
         model_state_file = path + 'last.pt'
     else:
         model_state_file = path + 'best.pt'
+
+    # 测试时允许通过参数指定外部 checkpoint 目录，默认行为保持不变
+    if args.test and getattr(args, 'test_checkpoint_dir', ''):
+        ckpt_dir = args.test_checkpoint_dir
+        if not ckpt_dir.endswith('/') and not ckpt_dir.endswith('\\'):
+            ckpt_dir = ckpt_dir + '/'
+        if args.use_last_epoch:
+            model_state_file = ckpt_dir + 'last.pt'
+        else:
+            model_state_file = ckpt_dir + 'best.pt'
 
     use_cuda = args.gpu >= 0 and torch.cuda.is_available()
     # 始终记录完整实验过程日志
@@ -307,6 +518,10 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                                                             path,
                                                             model_state_file,
                                                             mode="test")
+
+        # 先执行 best.pt 测试，再在最终输出阶段读取 result/results.csv 并打印
+        if getattr(args, 'test_checkpoint_dir', ''):
+            _try_print_cached_result_metrics(args.test_checkpoint_dir)
     elif args.test and not os.path.exists(model_state_file):
         print("--------------{} not exist, Change mode to train and generate stat for testing----------------\n".format(model_state_file))
     else:

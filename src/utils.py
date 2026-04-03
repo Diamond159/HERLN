@@ -841,6 +841,7 @@ def analyse_class(dataset):
     with open(path+'/train.csv') as f:
         csv_file = csv.DictReader(f)
         for row in csv_file:
+            # 训练集的 modularity_class 作为聚类标签，用于构造结构先验
             class2node[int(row['modularity_class'])].append(int(row['Label']))
             node2class.append(int(row['modularity_class']))
             if int(row['degree']) == 0:
@@ -868,6 +869,7 @@ def new_class_graph(node2class, train_list):
         for fact in snapshot:
             s,r,o = fact[0],fact[1],fact[2]
             if node2class[s] == node2class[o]:
+                # 仅保留同社区且训练事实中出现过的实体对，作为聚类验证后的结构先验边
                 edges.add((s,o))
     
     for e in edges:

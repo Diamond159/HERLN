@@ -12,6 +12,8 @@ parser.add_argument("--n-epochs", type=int, default=15,
 					help="number of minimum training epochs on each time step")
 parser.add_argument("--test", action='store_true', default=False,
 					help="load stat from dir and directly test")
+parser.add_argument("--test-checkpoint-dir", type=str, default="",
+					help="optional checkpoint directory to load in test mode (expects best.pt/last.pt)")
 parser.add_argument("--multi-step", action='store_true', default=False,
 					help="do multi-steps inference without ground truth")
 parser.add_argument("--topk", type=int, default=10,

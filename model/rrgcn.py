@@ -277,7 +277,7 @@ class RecurrentRGCN(nn.Module):
             raise NotImplementedError 
 
         # 关系上下文先验：使用 (主体, 客体) 拼接特征生成关系先验偏置
-        # 该项以加性偏置方式作用于关系 logits，用于提升关系分类可辨性
+        # 该项以加性偏置方式作用于关系 logits，为解码器引入结构先验
         if self.use_rel_context_prior:
             self.rel_prior = nn.Sequential(
                 nn.Linear(2 * h_dim, h_dim),
@@ -435,11 +435,12 @@ class RecurrentRGCN(nn.Module):
 
     # ---------------- 基于 FFT 的关系分解与频率正则 ----------------
     def _relation_fft_components(self):
-        # 关系嵌入频域分解：低频保留长期趋势，高频反映快速变化
+        # 关系嵌入频域分解：低频保留长期趋势，高频反映短期波动
         rel = self.emb_rel  # (num_rels*2, h_dim)
         freq_domain = fft.fft(rel, dim=1)
         freqs = fft.fftfreq(self.h_dim, d=1.0).to(rel.device)
         abs_freqs = freqs.abs()
+        # alpha 控制低通强度，显式拆分低/高频成分
         low_mask = torch.exp(-abs_freqs * self.alpha).view(1, -1)
         high_mask = 1.0 - low_mask
         low_freq = freq_domain * low_mask
@@ -449,6 +450,7 @@ class RecurrentRGCN(nn.Module):
     def relation_freq_reg(self):
         # 频率正则：鼓励低高频分量可分，同时惩罚高频能量过大
         low_freq, high_freq = self._relation_fft_components()
+        # 分离项 + 高频惩罚，缓解频谱纠缠与噪声放大
         separation = -torch.norm(low_freq - high_freq, p=2)
         high_intensity = torch.norm(high_freq, p=2)
         norm_factor = 1.0 / (high_freq.shape[0] * high_freq.shape[1])
@@ -486,7 +488,7 @@ class RecurrentRGCN(nn.Module):
                 print(f"Error in copy generation prediction: {e}")
                 score_rel = self.rdecoder.forward(embedding, r_emb, all_triples, mode="test")
 
-            # 关系上下文先验以加性偏置方式叠加到关系 logits
+            # 关系上下文先验以加性偏置方式叠加到关系 logits（结构归纳偏置）
             if self.use_rel_context_prior:
                 s_idx = all_triples[:, 0]
                 o_idx = all_triples[:, 2]
@@ -543,7 +545,7 @@ class RecurrentRGCN(nn.Module):
                     # 原始关系预测路径（ConvTransR + 可选上下文先验）
                     score_rel = self.rdecoder.forward(pre_emb, r_emb, all_triples, mode="train").view(-1, 2 * self.num_rels)
 
-                    # Add contextual prior to relation logits
+                    # 关系上下文先验：显式建模实体对的关系偏好
                     if self.use_rel_context_prior:
                         s_idx = all_triples[:, 0]
                         o_idx = all_triples[:, 2]

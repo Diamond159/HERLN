@@ -1,4 +1,4 @@
-# DRPM-NSCV / Baseline: HERLN
+# DRPM-NSCV / Baseline: HERLN（Du Y, Liu X, Liang W, et al. Hawkes based Representation Learning for Reasoning over Scale-free Community-structured Temporal Knowledge Graphs[C]. Rambow O, Wanner L, Apidianaki M, et al. Proceedings of the 31st International Conference on Computational Linguistics. Abu Dhabi, UAE: Association for Computational Linguistics, 2025: 2935-2946.）
 
 本项目为硕士学位论文《基于时态知识图谱推理的事件预测技术研究》的实验代码仓库，覆盖模型训练、推理评估、消融实验、参数敏感性实验，以及论文表 5.12~5.17 的复现实验与结果整理。
 
@@ -41,7 +41,18 @@
 
 ## 2.3 依赖安装说明
 
-建议使用 conda 创建环境并安装 CUDA 11.8 + PyTorch 2.1.2：
+**AUTODL服务器环境配置**：
+服务器默认环境已预装 CUDA 11.8 + PyTorch 2.1.2，直接安装 DGL：
+
+```bash
+export DGLBACKEND=pytorch
+pip install --pre dgl -f https://data.dgl.ai/wheels-test/torch-2.1/cu118/repo.html
+pip install -r requirement.txt
+```
+
+**本地环境配置**：
+
+使用 conda 创建环境：
 
 ```bash
 conda create -n logcl python=3.10
@@ -49,20 +60,15 @@ conda activate logcl
 conda install pytorch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2 pytorch-cuda=11.8 -c pytorch -c nvidia
 ```
 
-安装 DGL (cu118)：
-
-```bash
-conda install -c dglteam/label/cu118 dgl --force-reinstall
-```
-
-如需使用预发布轮子：
+然后安装 DGL 和其他依赖：
 
 ```bash
 export DGLBACKEND=pytorch
 pip install --pre dgl -f https://data.dgl.ai/wheels-test/torch-2.1/cu118/repo.html
+pip install -r requirement.txt
 ```
 
-本仓库亦保留了旧版本依赖清单 [requirement.txt](requirement.txt)，用于兼容早期实验环境。若使用该文件，请确保 CUDA / PyTorch / DGL 版本与当前环境一致。
+> **注**：[requirement.txt](requirement.txt) 包含当前版本的完整依赖清单，确保 CUDA、PyTorch 和 DGL 版本与环境一致。
 
 ## 2.4 数据说明
 
@@ -125,7 +131,3 @@ bash experiments/table5_15_16_17消融实验/ftt_freq_reg/run.sh
 - torch 2.4.1 启动失败，考虑是dgl包太新了
 - DGL 无法导入: 确认 `DGLBACKEND=pytorch` 且 DGL 与 PyTorch 版本匹配。
 - 显存不足: 降低 `--n-hidden`、`--n-layers` 或缩短历史长度 `--train-history-len`。
-
-## 2.9 判定标准
-
-README 若缺少环境说明、运行步骤、实验复现说明、图表生成说明中的任何关键项，应视为不完整。本 README 已覆盖上述必备内容，并提供实验目录对应关系与运行命令。
